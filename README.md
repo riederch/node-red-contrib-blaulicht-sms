@@ -26,8 +26,17 @@ Das Abfrageintervall ist frei wählbar und der Node kann kontinuierlich oder nur
 # Installation
 Download und Unzip vom Repository (noch nicht auf NPM)
 ```
-cd $HOME/.node-red
-npm install <dir>/node-red-contrib-blaulicht-sms/
+mkdir ~/install_tmp
+cd ~/install_tmp
+git clone https://github.com/oe8chk/node-red-contrib-blaulicht-sms.git
+cd node-red-contrib-blaulicht-sms
+git checkout release/0.1.0
+cd ~/.node-red
+node-red-stop
+npm install ~/install_tmp/node-red-contrib-blaulicht-sms/
+sudo rm -r ~/install_tmp
+cd
+node-red-start
 ```
 
 # Geplant:
