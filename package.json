@@ -1,0 +1,21 @@
+{
+    "name" : "node-red-contrib-blaulicht-sms",
+    "version": "0.1.0",
+    "description"  : "A BlaulichtSMS API access for Node Red",
+    "license"  : "MIT",
+    "author": {
+        "name": "rch"
+    },
+     "dependencies"  : {
+         "node-rest-client" : "3.1.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/oe8chk/node-red-contrib-blaulicht-sms"
+    },
+    "node-red" : {
+        "nodes": {
+            "blaulicht-sms-dash": "blaulicht-sms-dash.js"
+        }
+    }
+}

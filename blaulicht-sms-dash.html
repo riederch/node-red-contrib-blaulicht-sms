@@ -1,0 +1,83 @@
+<script type="text/javascript">
+    RED.nodes.registerType('bl-sms-dash',{
+        category: 'output',
+        color: '#ffffff',
+        defaults: {
+            kid: { value: "", required: true },
+            user: { value: "", required: true },
+            password: { value: "", required: true },
+            timer: { value: "5", required: true },
+            updateOnly: { value: false,},
+            name: { value:"" }
+        },
+        inputs:0,
+        outputs:1,
+        icon: "blsms-logo.png",
+        label: function() {
+            return this.name||"BlaulichtSMS Dashboard";
+        }
+    });
+</script>
+
+<script type="text/x-red" data-template-name="bl-sms-dash">
+     <div class="form-row">
+        <label for="node-input-kid"><i class="icon-tag"></i> Customer ID</label>
+        <input type="number" min="1" id="node-input-kid" placeholder="123456">
+    </div>
+     <div class="form-row">
+        <label for="node-input-user"><i class="icon-tag"></i> User</label>
+        <input type="text" id="node-input-user" placeholder="einsatzmonitor">
+    </div>
+     <div class="form-row">
+        <label for="node-input-password"><i class="icon-tag"></i> Password</label>
+        <input type="password" id="node-input-password" placeholder="*******">
+    </div>
+    <div class="form-row">
+        <label for="node-input-timer"><i class="icon-tag"></i> Interval</label>
+        <input type="number" min="1" id="node-input-timer" placeholder="2">
+    </div>
+    <div class="form-row">
+        <label for="node-input-updateOnly"><i class="icon-tag"></i> Message on update only</label>
+        <input type="checkbox" min="1" id="node-input-updateOnly">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="bl-sms-dash">
+    <p>A BlaulichtSMS Dashboard API node for getting alarms and infos</p>
+    
+    <h3>Outputs</h3>
+     <ul class="node-ports">
+         <li>
+             <dl class="message-properties">
+                 <dt>msg.payload</dt> contains the received object described in the
+                 <a href="https://github.com/blaulichtSMS/docs/blob/master/dashboard_api_v1.md#dasboard-informationen">API Description</a>.
+             </dl>
+         </li>
+     </ul>
+     <h3>Config</h3>
+     <ul class="node-ports">
+         <li>
+             Customer ID, User and Password
+             <dl class="message-properties">
+                 The user data for this is the same as that used to log in to <a href="https://dashboard.blaulichtsms.net">https://dashboard.blaulichtsms.net</a>.
+             </dl>
+             </li>
+              <li> Interval
+             <dl class="message-properties">
+                The request interval(in seconds) can be selected on your own.
+             </dl>
+              </li>
+              <li>  Message on update only
+             <dl class="message-properties">
+                You can choose if you want every message or avoid duplicates.<br>
+                (!) Not every message is an alarm or info. There will also be an event if you only schedule an alert.
+             </dl>
+         </li>
+     </ul>
+</script>
+
+
