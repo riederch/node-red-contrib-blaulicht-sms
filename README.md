@@ -29,8 +29,6 @@ Download und Unzip vom Repository (noch nicht auf NPM)
 mkdir ~/install_tmp
 cd ~/install_tmp
 git clone https://github.com/oe8chk/node-red-contrib-blaulicht-sms.git
-cd node-red-contrib-blaulicht-sms
-git checkout release/0.1.0
 cd ~/.node-red
 node-red-stop
 npm install ~/install_tmp/node-red-contrib-blaulicht-sms/
