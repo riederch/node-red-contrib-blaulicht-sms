@@ -65,11 +65,11 @@ module.exports = function (RED) {
             }
             // request data
             if (node.sessionKey) {
-                 node.status({fill: "green", shape: "ring", text: "requesting"});
+                node.status({fill: "green", shape: "ring", text: "requesting"});
                 apiEndpoint = node.host + node.api + node.sessionKey;
                 node.client.get(apiEndpoint, function (data, response) {
                     if (response.statusCode === 200) {
-                         node.status({fill: "green", shape: "dot", text: "received data"});
+                        node.status({fill: "green", shape: "dot", text: "received data"});
                         //console.log("BlSms data: got data");
                         if (node.updateOnly) {
                             //console.log("updating only");

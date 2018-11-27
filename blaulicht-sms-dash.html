@@ -1,20 +1,20 @@
 <script type="text/javascript">
-    RED.nodes.registerType('bl-sms-dash',{
+    RED.nodes.registerType('bl-sms-dash', {
         category: 'output',
         color: '#ffffff',
         defaults: {
-            kid: { value: "", required: true },
-            user: { value: "", required: true },
-            password: { value: "", required: true },
-            timer: { value: "5", required: true },
-            updateOnly: { value: false,},
-            name: { value:"" }
+            kid: {value: "", required: true},
+            user: {value: "", required: true},
+            password: {value: "", required: true},
+            timer: {value: "5", required: true},
+            updateOnly: {value: false,},
+            name: {value: ""}
         },
-        inputs:0,
-        outputs:1,
+        inputs: 0,
+        outputs: 1,
         icon: "blsms-logo.png",
-        label: function() {
-            return this.name||"BlaulichtSMS Dashboard";
+        label: function () {
+            return this.name || "BlaulichtSMS Dashboard";
         }
     });
 </script>
@@ -79,5 +79,3 @@
          </li>
      </ul>
 </script>
-
-
