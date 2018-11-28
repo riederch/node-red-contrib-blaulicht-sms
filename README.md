@@ -1,5 +1,5 @@
 # Node-Red-Contrib-Blaulicht-SMS
-Node-Red-Contrib-Blaulicht-SMS ist Node-Red Node der die [BlaulichtSMS API](https://github.com/blaulichtSMS/docs) verwendet.
+Node-Red-Contrib-Blaulicht-SMS ist eine Node-Red Integration für die [BlaulichtSMS API](https://github.com/blaulichtSMS/docs).
 
 Man kann damit, z.B. am Raspberry Pi, Alarme oder Infos empfangen und damit was auch immer anstellen :)  
 Ein Beispiel wäre das Schalten von Monitoren über HDMI mit [Node-Red-Contrib-Cec](https://github.com/damoclark/node-red-contrib-cec).
