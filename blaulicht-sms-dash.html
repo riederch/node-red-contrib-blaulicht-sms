@@ -1,12 +1,14 @@
 <script type="text/javascript">
     RED.nodes.registerType('bl-sms-dash', {
-        category: 'output',
+        category: 'input',
         color: '#ffffff',
         defaults: {
             kid: {value: "", required: true},
             user: {value: "", required: true},
             password: {value: "", required: true},
-            timer: {value: "5", required: true},
+            timer: {value: "5", required: true, validate:function (a) {
+                    return a >= 5;
+                } },
             updateOnly: {value: false,},
             name: {value: ""}
         },
@@ -34,11 +36,11 @@
     </div>
     <div class="form-row">
         <label for="node-input-timer"><i class="icon-tag"></i> Interval</label>
-        <input type="number" min="1" id="node-input-timer" placeholder="2">
+        <input type="number" min="5" id="node-input-timer" placeholder="2">
     </div>
     <div class="form-row">
         <label for="node-input-updateOnly"><i class="icon-tag"></i> Message on update only</label>
-        <input type="checkbox" min="1" id="node-input-updateOnly">
+        <input type="checkbox" id="node-input-updateOnly">
     </div>
     <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Name</label>
