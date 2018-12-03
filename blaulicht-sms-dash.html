@@ -6,9 +6,11 @@
             kid: {value: "", required: true},
             user: {value: "", required: true},
             password: {value: "", required: true},
-            timer: {value: "5", required: true, validate:function (a) {
-                    return a >= 5;
-                } },
+            timer: {
+                value: "5", required: true, validate: function (a) {
+                    return a >= 5 && a < Number.MAX_SAFE_INTEGER;
+                }
+            },
             updateOnly: {value: false,},
             name: {value: ""}
         },
