@@ -68,6 +68,9 @@ module.exports = function (RED) {
                     msg.payload = data;
                     node.send(msg);
                 }
+            }).on('error', function (err) {
+                console.log("Exception on requesting data from BlaulichtSMS :" + err);
+                node.status({fill: "red", shape: "ring", text: "connection Err: " + err});
             });
 
         });
