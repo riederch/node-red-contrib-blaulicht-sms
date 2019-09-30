@@ -32,7 +32,7 @@ git clone https://github.com/riederch/node-red-contrib-blaulicht-sms.git
 npm pack node-red-contrib-blaulicht-sms/
 cd ~/.node-red
 node-red-stop
-npm install ~/install_tmp/node-red-contrib-blaulicht-sms-0.1.2.tgz
+npm install ~/install_tmp/node-red-contrib-blaulicht-sms-0.1.4.tgz
 sudo rm -r ~/install_tmp
 cd
 node-red-start

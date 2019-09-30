@@ -58,9 +58,16 @@ module.exports = function (RED) {
                             node.status({fill: "red", shape: "dot", text: "session Err: " + data.error});
                         } else {
                             //console.log("BlSms login: http code "+response.statusCode);
-                            node.status({fill: "red", shape: "dot", text: "connection Err: " + response.statusCode});
+                            node.status({
+                                fill: "red",
+                                shape: "dot",
+                                text: "connection Err: " + response.statusCode
+                            });
                         }
                     }
+                }).on('error', function (err) {
+                    console.log("Exception on requesting data from BlaulichtSMS :" + err);
+                    node.status({fill: "red", shape: "ring", text: "connection Err: " + err});
                 });
             }
             // request data
@@ -86,6 +93,9 @@ module.exports = function (RED) {
                         //console.log("BlSms data: http code "+response.statusCode);
                         node.status({fill: "red", shape: "ring", text: "connection Err: " + response.statusCode});
                     }
+                }).on('error', function (err) {
+                    console.log("Exception on requesting data from BlaulichtSMS :" + err);
+                    node.status({fill: "red", shape: "ring", text: "connection Err: " + err});
                 });
             }
         }, node.timer);
