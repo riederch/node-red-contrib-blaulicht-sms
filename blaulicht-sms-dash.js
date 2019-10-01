@@ -15,6 +15,7 @@ module.exports = function (RED) {
         this.host = "https://api.blaulichtsms.net/blaulicht/";
         this.api = "api/alarm/v1/dashboard/";
         this.login = "api/alarm/v1/dashboard/login";
+        this.token = config.token;
         this.kid = config.kid;
         this.user = config.user;
         this.pass = config.password;
@@ -29,46 +30,48 @@ module.exports = function (RED) {
         let node = this;
         this.status({fill: "grey", shape: "ring", text: "disconnected"});
 
-        let i = 0;
         let apiEndpoint;
         node.tout = setInterval(function () {
             //if( i++ == 10) node.sessionKey += 'a'; //  simulate expired key
+            if (!node.token) {
+                // request Api Key if not set
+                if (!node.sessionKey) {
+                    apiEndpoint = node.host + node.login;
+                    let args = {
+                        data: {
+                            username: node.user,
+                            password: node.pass,
+                            customerId: node.kid
+                        },
+                        headers: {"Content-Type": "application/json"}
+                    };
 
-            // request Api Key if not set
-            if (!node.sessionKey) {
-                apiEndpoint = node.host + node.login;
-                let args = {
-                    data: {
-                        username: node.user,
-                        password: node.pass,
-                        customerId: node.kid
-                    },
-                    headers: {"Content-Type": "application/json"}
-                };
-
-                node.client.post(apiEndpoint, args, function (data, response) {
-                    //console.log("BlSms login:"+response.statusCode);
-                    if (data.error === null) {
-                        node.sessionKey = data.sessionId;
-                        //console.log("BlSms login: got session ID");
-                        node.status({fill: "green", shape: "dot", text: "session OK"});
-                    } else {
-                        if (data.error) {
-                            //console.log("BlSms login: got error message "+data.error);
-                            node.status({fill: "red", shape: "dot", text: "session Err: " + data.error});
+                    node.client.post(apiEndpoint, args, function (data, response) {
+                        //console.log("BlSms login:"+response.statusCode);
+                        if (data.error === null) {
+                            node.sessionKey = data.sessionId;
+                            //console.log("BlSms login: got session ID");
+                            node.status({fill: "green", shape: "dot", text: "session OK"});
                         } else {
-                            //console.log("BlSms login: http code "+response.statusCode);
-                            node.status({
-                                fill: "red",
-                                shape: "dot",
-                                text: "connection Err: " + response.statusCode
-                            });
+                            if (data.error) {
+                                //console.log("BlSms login: got error message "+data.error);
+                                node.status({fill: "red", shape: "dot", text: "session Err: " + data.error});
+                            } else {
+                                //console.log("BlSms login: http code "+response.statusCode);
+                                node.status({
+                                    fill: "red",
+                                    shape: "dot",
+                                    text: "connection Err: " + response.statusCode
+                                });
+                            }
                         }
-                    }
-                }).on('error', function (err) {
-                    console.log("Exception on requesting data from BlaulichtSMS :" + err);
-                    node.status({fill: "red", shape: "ring", text: "connection Err: " + err});
-                });
+                    }).on('error', function (err) {
+                        console.log("Exception on requesting data from BlaulichtSMS :" + err);
+                        node.status({fill: "red", shape: "ring", text: "connection Err: " + err});
+                    });
+                }
+            } else {
+                node.sessionKey = node.token;
             }
             // request data
             if (node.sessionKey) {
@@ -89,12 +92,20 @@ module.exports = function (RED) {
                         }
                         node.prevData = data;
                     } else {
-                        node.sessionKey = null;
-                        //console.log("BlSms data: http code "+response.statusCode);
-                        node.status({fill: "red", shape: "ring", text: "connection Err: " + response.statusCode});
+                        if (node.token) {
+                            node.status({
+                                fill: "red",
+                                shape: "ring",
+                                text: "connection Err: given login token is not valid"
+                            });
+                        } else {
+                            node.sessionKey = null;
+                            //console.log("BlSms data: http code "+response.statusCode);
+                            node.status({fill: "red", shape: "ring", text: "connection Err: " + response.statusCode});
+                        }
                     }
                 }).on('error', function (err) {
-                    console.log("Exception on requesting data from BlaulichtSMS :" + err);
+                    // console.log("Exception on requesting data from BlaulichtSMS :" + err);
                     node.status({fill: "red", shape: "ring", text: "connection Err: " + err});
                 });
             }
