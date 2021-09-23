@@ -30,13 +30,15 @@ mkdir ~/install_tmp
 cd ~/install_tmp
 git clone https://github.com/riederch/node-red-contrib-blaulicht-sms.git
 npm pack node-red-contrib-blaulicht-sms/
-cd ~/.node-red
-node-red-stop
-npm install ~/install_tmp/node-red-contrib-blaulicht-sms-0.2.0.tgz
-sudo rm -r ~/install_tmp
-cd
-node-red-start
+mv ~/install_tmp/node-red-contrib-blaulicht-sms-0.2.0.tgz ~/node-red-contrib-blaulicht-sms-0.2.0.tgz
+cd ~
+rm -rf ~/install_tmp
 ```
+
+Danach übers Menü importieren:
+<img width="354" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134506930-466323dc-edc6-45aa-9496-64b4c168c9c4.png">
+<img width="781" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134507022-a217830a-3ca3-4635-be3f-2e7c7ddfce77.png">
+
 
 # Geplant:
 * Node für die Alarm API
