@@ -37,8 +37,7 @@ rm -rf ~/install_tmp
 
 Danach übers Menü importieren:
 
-<img width="200" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134506930-466323dc-edc6-45aa-9496-64b4c168c9c4.png">
-<img width="200" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134507022-a217830a-3ca3-4635-be3f-2e7c7ddfce77.png">
+<img width="200" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134506930-466323dc-edc6-45aa-9496-64b4c168c9c4.png"> <img width="200" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134507022-a217830a-3ca3-4635-be3f-2e7c7ddfce77.png">
 
 
 # Geplant:
