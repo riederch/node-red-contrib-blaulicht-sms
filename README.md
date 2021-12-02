@@ -24,7 +24,15 @@ Nähere Infos unter [Dasboard Informationen](https://github.com/blaulichtSMS/doc
 Das Abfrageintervall ist frei wählbar und der Node kann kontinuierlich oder nur nach Änderungen eine Message weitersenden.
 
 # Installation
-Download und Unzip vom Repository (noch nicht auf NPM)
+[Download](https://github.com/riederch/node-red-contrib-blaulicht-sms/raw/master/node-red-contrib-blaulicht-sms-0.2.0.tgz)
+
+Danach übers Menü importieren:
+
+<img width="200" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134506930-466323dc-edc6-45aa-9496-64b4c168c9c4.png"> <img width="500" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134507022-a217830a-3ca3-4635-be3f-2e7c7ddfce77.png">
+
+
+
+### Manueller Build:
 ```
 mkdir ~/install_tmp
 cd ~/install_tmp
@@ -34,11 +42,6 @@ mv ~/install_tmp/node-red-contrib-blaulicht-sms-0.2.0.tgz ~/node-red-contrib-bla
 cd ~
 rm -rf ~/install_tmp
 ```
-
-Danach übers Menü importieren:
-
-<img width="200" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134506930-466323dc-edc6-45aa-9496-64b4c168c9c4.png"> <img width="500" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134507022-a217830a-3ca3-4635-be3f-2e7c7ddfce77.png">
-
 
 # Geplant:
 * Node für die Alarm API
