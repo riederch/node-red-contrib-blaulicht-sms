@@ -1,228 +1,219 @@
 'use strict';
 
-const https = require('node:https');
+const { isDeepStrictEqual } = require('node:util');
+const { version: packageVersion } = require('./package.json');
+const {
+    BlaulichtSmsDashboardClient,
+    BlaulichtSmsError
+} = require('./lib/blaulicht-sms-client');
 
-const API_HOST = 'api.blaulichtsms.net';
-const API_BASE_PATH = '/blaulicht/api/alarm/v1/dashboard';
 const MIN_INTERVAL_SECONDS = 5;
+const MAX_INTERVAL_SECONDS = 86400;
 const DEFAULT_INTERVAL_SECONDS = 10;
-const REQUEST_TIMEOUT_MS = 15000;
+const MAX_RETRY_DELAY_MS = 5 * 60 * 1000;
 
-function requestJson({ method, path, body, timeout = REQUEST_TIMEOUT_MS }) {
-    return new Promise((resolve, reject) => {
-        const payload = body === undefined ? null : JSON.stringify(body);
-        const options = {
-            hostname: API_HOST,
-            port: 443,
-            method,
-            path,
-            headers: { Accept: 'application/json' }
-        };
+function parseIntervalSeconds(value) {
+    const interval = Number(value);
+    if (!Number.isInteger(interval) || interval < MIN_INTERVAL_SECONDS || interval > MAX_INTERVAL_SECONDS) {
+        return DEFAULT_INTERVAL_SECONDS;
+    }
+    return interval;
+}
 
-        if (payload !== null) {
-            options.headers['Content-Type'] = 'application/json; charset=utf-8';
-            options.headers['Content-Length'] = Buffer.byteLength(payload);
-        }
+function inferAuthType(config, credentials) {
+    if (config.authType === 'token' || config.authType === 'credentials') {
+        return config.authType;
+    }
 
-        const request = https.request(options, (response) => {
-            const chunks = [];
-            response.setEncoding('utf8');
-            response.on('data', (chunk) => chunks.push(chunk));
-            response.on('end', () => {
-                const rawBody = chunks.join('');
-                let data = null;
+    const hasToken = Boolean(credentials.token || config.token);
+    const hasCredentials = Boolean(
+        credentials.username ||
+        credentials.password ||
+        config.user ||
+        config.password ||
+        config.customerId ||
+        config.kid
+    );
+    return hasToken && !hasCredentials ? 'token' : 'credentials';
+}
 
-                if (rawBody.length > 0) {
-                    try {
-                        data = JSON.parse(rawBody);
-                    } catch (error) {
-                        const parseError = new Error(`BlaulichtSMS returned invalid JSON (HTTP ${response.statusCode})`);
-                        parseError.code = 'INVALID_JSON';
-                        parseError.statusCode = response.statusCode;
-                        parseError.cause = error;
-                        reject(parseError);
+function resolveConfiguration(config, credentials = {}) {
+    const authType = inferAuthType(config, credentials);
+    return {
+        authType,
+        token: credentials.token || config.token || '',
+        username: credentials.username || config.user || '',
+        password: credentials.password || config.password || '',
+        customerId: String(config.customerId || config.kid || '').trim(),
+        intervalSeconds: parseIntervalSeconds(config.interval || config.timer),
+        updateOnly: config.updateOnly === true || config.updateOnly === 'true'
+    };
+}
+
+function calculateRetryDelay(intervalMs, consecutiveFailures) {
+    const exponent = Math.max(0, Math.min(consecutiveFailures - 1, 6));
+    return Math.min(intervalMs * (2 ** exponent), MAX_RETRY_DELAY_MS);
+}
+
+function errorPresentation(error) {
+    const code = error && error.code;
+    switch (code) {
+        case 'CONFIGURATION_ERROR':
+            return { status: 'configuration error', log: 'configuration error' };
+        case 'LOGIN_FAILED':
+            return { status: 'login failed', log: 'login failed' };
+        case 'TOKEN_REJECTED':
+            return { status: 'token rejected', log: 'token rejected' };
+        case 'INVALID_JSON':
+        case 'INVALID_RESPONSE':
+        case 'RESPONSE_TOO_LARGE':
+            return { status: 'invalid response', log: 'invalid API response' };
+        default:
+            return { status: 'connection error', log: 'connection error' };
+    }
+}
+
+function createRegistration(dependencies = {}) {
+    const clientFactory = dependencies.clientFactory || ((options) => new BlaulichtSmsDashboardClient(options));
+    const setTimeoutFn = dependencies.setTimeoutFn || setTimeout;
+    const clearTimeoutFn = dependencies.clearTimeoutFn || clearTimeout;
+    const now = dependencies.now || (() => new Date());
+
+    return function registerNode(RED) {
+        function BlaulichtSmsDashboardNode(config) {
+            RED.nodes.createNode(this, config);
+            const node = this;
+            const resolved = resolveConfiguration(config, node.credentials || {});
+            const intervalMs = resolved.intervalSeconds * 1000;
+            const client = clientFactory({
+                authType: resolved.authType,
+                token: resolved.token,
+                username: resolved.username,
+                password: resolved.password,
+                customerId: resolved.customerId,
+                userAgent: `node-red-contrib-blaulicht-sms/${packageVersion}`
+            });
+
+            let timer = null;
+            let abortController = null;
+            let stopped = false;
+            let previousData;
+            let consecutiveFailures = 0;
+            let lastLoggedError = null;
+
+            function setStatus(fill, shape, text) {
+                node.status({ fill, shape, text });
+            }
+
+            function schedule(delayMs) {
+                if (stopped) {
+                    return;
+                }
+                timer = setTimeoutFn(runPoll, delayMs);
+            }
+
+            function reportError(error) {
+                const presentation = errorPresentation(error);
+                setStatus('red', 'ring', presentation.status);
+                const details = error && error.message ? error.message : String(error);
+                const signature = `${error && error.code}|${error && error.statusCode}|${details}`;
+                if (signature !== lastLoggedError) {
+                    node.error(`${presentation.log}: ${details}`);
+                    lastLoggedError = signature;
+                }
+            }
+
+            async function runPoll() {
+                if (stopped) {
+                    return;
+                }
+
+                timer = null;
+                abortController = new AbortController();
+                setStatus('yellow', 'ring', 'requesting');
+
+                try {
+                    const data = await client.getDashboard({ signal: abortController.signal });
+                    if (stopped) {
                         return;
                     }
+
+                    const changed = previousData === undefined || !isDeepStrictEqual(data, previousData);
+                    setStatus('green', 'dot', 'connected');
+                    if (!resolved.updateOnly || changed) {
+                        node.send({
+                            topic: 'blaulichtsms/dashboard',
+                            payload: data,
+                            blaulichtSms: {
+                                receivedAt: now().toISOString(),
+                                changed
+                            }
+                        });
+                    }
+
+                    previousData = data;
+                    consecutiveFailures = 0;
+                    lastLoggedError = null;
+                    schedule(intervalMs);
+                } catch (error) {
+                    if (stopped && (error.name === 'AbortError' || error.code === 'ABORT_ERR')) {
+                        return;
+                    }
+
+                    consecutiveFailures += 1;
+                    reportError(error);
+                    schedule(calculateRetryDelay(intervalMs, consecutiveFailures));
+                } finally {
+                    abortController = null;
                 }
-
-                resolve({ statusCode: response.statusCode, data });
-            });
-        });
-
-        request.setTimeout(timeout, () => {
-            const timeoutError = new Error(`BlaulichtSMS request timed out after ${timeout} ms`);
-            timeoutError.code = 'ETIMEDOUT';
-            request.destroy(timeoutError);
-        });
-        request.on('error', reject);
-
-        if (payload !== null) {
-            request.write(payload);
-        }
-        request.end();
-    });
-}
-
-function parseInterval(value) {
-    const interval = Number(value);
-    if (!Number.isFinite(interval) || interval < MIN_INTERVAL_SECONDS) {
-        return DEFAULT_INTERVAL_SECONDS * 1000;
-    }
-    return interval * 1000;
-}
-
-function isEqual(a, b) {
-    return JSON.stringify(a) === JSON.stringify(b);
-}
-
-module.exports = function registerNode(RED) {
-    function BlaulichtSmsDashboardNode(config) {
-        RED.nodes.createNode(this, config);
-        const node = this;
-
-        const credentials = node.credentials || {};
-        // Keep flows created with versions <= 0.2.0 working after upgrade.
-        const token = credentials.token || config.token || '';
-        const username = credentials.username || config.user || '';
-        const password = credentials.password || config.password || '';
-        const customerId = String(config.customerId || config.kid || '').trim();
-        const updateOnly = Boolean(config.updateOnly);
-        const intervalMs = parseInterval(config.interval || config.timer);
-
-        let sessionId = token || null;
-        let previousData;
-        let timer = null;
-        let closed = false;
-        let requestInProgress = false;
-
-        function setStatus(fill, shape, text) {
-            node.status({ fill, shape, text });
-        }
-
-        function reportError(error, message) {
-            const details = error && error.message ? error.message : String(error);
-            setStatus('red', 'ring', message);
-            node.error(`${message}: ${details}`);
-        }
-
-        async function login() {
-            if (token) {
-                sessionId = token;
-                return true;
             }
 
-            if (!username || !password || !customerId) {
-                setStatus('red', 'ring', 'credentials missing');
-                return false;
-            }
+            setStatus('grey', 'ring', 'starting');
+            schedule(0);
 
-            setStatus('yellow', 'ring', 'signing in');
-            const response = await requestJson({
-                method: 'POST',
-                path: `${API_BASE_PATH}/login`,
-                body: { username, password, customerId }
-            });
-
-            if (response.statusCode !== 200 || !response.data || response.data.success !== true || !response.data.sessionId) {
-                const apiError = response.data && response.data.error ? response.data.error : `HTTP ${response.statusCode}`;
-                const error = new Error(apiError);
-                error.code = 'LOGIN_FAILED';
-                throw error;
-            }
-
-            sessionId = response.data.sessionId;
-            setStatus('green', 'dot', 'session active');
-            return true;
-        }
-
-        async function fetchDashboard(retryAfterUnauthorized = true) {
-            if (!sessionId && !(await login())) {
-                return;
-            }
-
-            setStatus('green', 'ring', 'requesting');
-            const response = await requestJson({
-                method: 'GET',
-                path: `${API_BASE_PATH}/${encodeURIComponent(sessionId)}`
-            });
-
-            if (response.statusCode === 401 && !token && retryAfterUnauthorized) {
-                sessionId = null;
-                if (await login()) {
-                    await fetchDashboard(false);
+            node.on('close', (removed, done) => {
+                if (typeof removed === 'function') {
+                    done = removed;
                 }
-                return;
-            }
-
-            if (response.statusCode !== 200) {
-                const error = new Error(`HTTP ${response.statusCode}`);
-                error.code = 'DASHBOARD_REQUEST_FAILED';
-                throw error;
-            }
-
-            const data = response.data;
-            setStatus('green', 'dot', 'data received');
-
-            if (!updateOnly || previousData === undefined || !isEqual(data, previousData)) {
-                node.send({ payload: data });
-            }
-            previousData = data;
-        }
-
-        async function poll() {
-            if (closed || requestInProgress) {
-                return;
-            }
-
-            requestInProgress = true;
-            try {
-                await fetchDashboard();
-            } catch (error) {
-                if (!token && error && error.code === 'LOGIN_FAILED') {
-                    sessionId = null;
-                    reportError(error, 'login failed');
-                } else if (token && error && error.code === 'DASHBOARD_REQUEST_FAILED') {
-                    reportError(error, 'token rejected');
-                } else {
-                    reportError(error, 'connection error');
+                stopped = true;
+                if (timer !== null) {
+                    clearTimeoutFn(timer);
+                    timer = null;
                 }
-            } finally {
-                requestInProgress = false;
-            }
+                if (abortController) {
+                    abortController.abort();
+                    abortController = null;
+                }
+                node.status({});
+                if (typeof done === 'function') {
+                    done();
+                }
+            });
         }
 
-        setStatus('grey', 'ring', 'disconnected');
-        void poll();
-        timer = setInterval(() => void poll(), intervalMs);
-
-        node.on('close', (done) => {
-            closed = true;
-            if (timer) {
-                clearInterval(timer);
-                timer = null;
-            }
-            if (typeof done === 'function') {
-                done();
+        RED.nodes.registerType('bl-sms-dash', BlaulichtSmsDashboardNode, {
+            credentials: {
+                token: { type: 'password' },
+                username: { type: 'text' },
+                password: { type: 'password' }
             }
         });
-    }
+    };
+}
 
-    RED.nodes.registerType('bl-sms-dash', BlaulichtSmsDashboardNode, {
-        credentials: {
-            token: { type: 'password' },
-            username: { type: 'text' },
-            password: { type: 'password' }
-        }
-    });
-};
+const registerNode = createRegistration();
 
+module.exports = registerNode;
 module.exports._internals = {
-    API_BASE_PATH,
-    API_HOST,
+    BlaulichtSmsError,
     DEFAULT_INTERVAL_SECONDS,
+    MAX_INTERVAL_SECONDS,
+    MAX_RETRY_DELAY_MS,
     MIN_INTERVAL_SECONDS,
-    REQUEST_TIMEOUT_MS,
-    isEqual,
-    parseInterval,
-    requestJson
+    calculateRetryDelay,
+    createRegistration,
+    errorPresentation,
+    inferAuthType,
+    parseIntervalSeconds,
+    resolveConfiguration
 };
