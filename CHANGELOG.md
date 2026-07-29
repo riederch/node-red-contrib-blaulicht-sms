@@ -6,15 +6,15 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
-### Release validation still required
+### Required before stable 1.0.0
 
 - Real Dashboard API test with a dedicated test dashboard
 - Alarm API `trigger`, `query` and `list` test against the official staging environment
-- Controlled live trigger test with an authorized test group
+- Controlled live trigger test with an authorized low-impact test group
 - Installation smoke test in clean Node-RED 4 and Node-RED 5 environments
 - npm publication and Node-RED Flow Library submission
 
-## [1.0.0] - 2026-07-29
+## [1.0.0-rc.1] - 2026-07-29
 
 ### Added
 
