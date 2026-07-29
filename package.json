@@ -5,7 +5,8 @@
   "keywords": [
     "node-red",
     "blaulichtsms",
-    "fire brigade",
+    "fire-brigade",
+    "emergency-services",
     "alarm",
     "dashboard"
   ],
@@ -19,20 +20,36 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/riederch/node-red-contrib-blaulicht-sms.git"
+    "url": "https://github.com/riederch/node-red-contrib-blaulicht-sms.git"
   },
-  "main": "blaulicht-sms-dash.js",
+  "files": [
+    "blaulicht-sms-dash.js",
+    "blaulicht-sms-dash.html",
+    "lib/",
+    "examples/",
+    "docs/",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "README.de.md"
+  ],
   "scripts": {
     "test": "node --test",
-    "check": "node --check blaulicht-sms-dash.js"
+    "test:coverage": "node --test --experimental-test-coverage",
+    "check": "node scripts/validate-package.js",
+    "prepack": "npm run check && npm test"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18.0.0"
   },
   "node-red": {
-    "version": ">=3.0.0",
+    "version": ">=4.0.0",
     "nodes": {
-      "blaulicht-sms-dash": "blaulicht-sms-dash.js"
+      "blaulicht-sms-dashboard": "blaulicht-sms-dash.js"
     }
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "blaulicht-sms-dash.js"
 }
