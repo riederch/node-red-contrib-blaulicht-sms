@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-blaulicht-sms",
-  "version": "1.0.0",
+  "version": "1.0.0-rc.1",
   "description": "Node-RED nodes for the blaulichtSMS Dashboard API and Alarm API",
   "keywords": ["node-red", "blaulichtsms", "fire-brigade", "emergency-services", "alarm", "dashboard"],
   "license": "MIT",
@@ -23,6 +23,6 @@
       "blaulicht-sms-alarm": "blaulicht-sms-alarm.js"
     }
   },
-  "publishConfig": { "access": "public" },
+  "publishConfig": { "access": "public", "tag": "next" },
   "main": "blaulicht-sms-dash.js"
 }
