@@ -1,52 +1,103 @@
 # node-red-contrib-blaulicht-sms
 
-Ein robust ausgelegter Node-RED-Eingangsnode zum Empfangen von Alarmen und Informationen über die offizielle [blaulichtSMS Dashboard API](https://github.com/blaulichtSMS/docs/blob/master/dashboard_api_v1.md).
+Produktionsorientierte Node-RED-Nodes für die blaulichtSMS Dashboard API und Alarm API.
 
-> **Unabhängiges Community-Projekt:** Dieses Paket wird nicht von blaulichtSMS entwickelt, unterstützt oder freigegeben. Es liest Dashboard-Daten und löst keine Alarmierungen aus.
+> **Unabhängiges Community-Projekt:** Dieses Paket wird nicht von blaulichtSMS entwickelt, freigegeben oder unterstützt.
 
-## Zweck
+## Enthaltene Nodes
 
-Der Node meldet sich an einem in blaulichtSMS eingerichteten Dashboard an, fragt regelmäßig die dokumentierte Dashboard API ab und übergibt die Antwort an einen Node-RED-Flow.
+### blaulichtSMS Dashboard
 
-Typische Anwendungen sind Einsatzmonitore, lokale Schaltungen, Weitergabe von Alarmdaten, Auswertung von Geodaten und Rückmeldungen sowie lokale Archivierung.
+Der Eingangsnode `bl-sms-dash` meldet sich an einem eingerichteten blaulichtSMS-Dashboard an und übergibt Alarme, Informationen und Dashboard-Daten an einen Node-RED-Flow.
+
+Funktionen:
+
+- Zugang über Dashboard-Zugangsdaten oder Session-Token,
+- automatische Session-Erneuerung nach HTTP 401,
+- konfigurierbares Abfrageintervall,
+- Ausgabe nur bei Änderungen,
+- kontrollierter Retry mit exponentiellem Backoff,
+- Abbruch laufender Requests beim Redeploy.
+
+### blaulichtSMS Alarm API
+
+Der Ausgangsnode `bl-sms-alarm` unterstützt die dokumentierte Alarm API V1.5:
+
+- `trigger`: Alarm oder Information auslösen,
+- `query`: einen Alarm über seine `alarmId` abfragen,
+- `list`: bis zu 100 Alarme für eine oder mehrere Kundennummern auflisten.
+
+Die Zugangsdaten des automatischen Alarmauslösers werden im Credential-Store von Node-RED gespeichert.
 
 ## Voraussetzungen
 
 - Node.js ab Version 18
 - Node-RED ab Version 4.0
-- Ein eingerichtetes blaulichtSMS-Dashboard
-- Netzwerkzugriff auf `api.blaulichtsms.net`
+- Für den Dashboard-Node: eingerichtetes blaulichtSMS-Dashboard
+- Für den Alarm-Node: bei blaulichtSMS eingerichteter automatischer Alarmauslöser
+- Netzwerkzugriff auf die gewählte blaulichtSMS-API-Umgebung
 
-## Konfiguration
-
-Zugangsdaten oder ein vorhandenes Session-Token können verwendet werden. Das Abfrageintervall liegt zwischen 5 und 86.400 Sekunden. Mit **Nur Änderungen** werden unveränderte Antworten nicht erneut ausgegeben.
-
-Zugangsdaten und Token werden im Credential-Store von Node-RED gespeichert und nicht mit exportierten Flows ausgegeben.
-
-## Ausgabe
+## Dashboard-Ausgabe
 
 Die API-Antwort bleibt unverändert in `msg.payload`. Zusätzlich setzt der Node:
 
-- `msg.topic = "blaulichtsms/dashboard"`
-- `msg.blaulichtSms.receivedAt`
-- `msg.blaulichtSms.changed`
+```js
+msg.topic = "blaulichtsms/dashboard";
+msg.blaulichtSms = {
+    receivedAt: "2026-07-29T12:00:00.000Z",
+    changed: true
+};
+```
 
-## Betriebssicherheit
+## Alarm-API-Eingabe
 
-- sofortige erste Abfrage,
-- keine parallelen Requests,
-- automatische Session-Erneuerung nach HTTP 401 bei Zugangsdaten,
-- Timeout und Größenlimit,
-- kontrollierte Behandlung von DNS-, Netzwerk-, HTTP- und JSON-Fehlern,
-- exponentielles Retry-Backoff,
-- Abbruch laufender Requests beim Stoppen oder Deployment.
+`msg.payload` enthält die operationsspezifischen Daten ohne Benutzername und Passwort.
+
+### Alarm auslösen
+
+```js
+msg.payload = {
+    customerId: "100027",
+    type: "alarm",
+    alarmText: "Brandmeldealarm Lagerhalle",
+    needsAcknowledgement: true,
+    duration: 60,
+    groupCodes: ["G1"],
+    coordinates: { lat: 46.61, lon: 13.85 }
+};
+```
+
+### Alarm abfragen
+
+```js
+msg.payload = {
+    customerId: "100027",
+    alarmId: "..."
+};
+```
+
+### Alarme auflisten
+
+```js
+msg.payload = {
+    customerIds: ["100027"],
+    startDate: "2026-01-01T00:00:00.000Z",
+    endDate: "2026-12-31T23:59:59.999Z"
+};
+```
+
+## Schutz bei Live-Alarmierung
+
+Die Staging-Umgebung ist die Voreinstellung. Ein `trigger` gegen die Live-Umgebung wird nur ausgeführt, wenn im Node ausdrücklich bestätigt wurde, dass damit reale Alarmierungen ausgelöst werden können.
+
+Trigger-Aufrufe werden niemals automatisch wiederholt. Bei einem Timeout oder Verbindungsabbruch kann der Alarm bereits angenommen worden sein. In diesem Fall wird `TRIGGER_OUTCOME_UNKNOWN` gemeldet. Vor einem erneuten Trigger muss der Zustand mit `query` oder `list` geprüft werden.
+
+## Fehlerbehandlung
+
+API-Resultcodes wie `INVALID_GROUP`, `INVALID_TEMPLATE` oder `NOT_AUTHORIZED` werden als strukturierte Fehler an Node-RED weitergegeben. Für die Verarbeitung im Flow kann ein Catch-Node verwendet werden.
 
 ## Upgrade von 0.2.0
 
-Der Node-Typ `bl-sms-dash` bleibt erhalten. Alte Felder werden zur Laufzeit unterstützt. Nach dem Upgrade jeden bestehenden Node öffnen, prüfen, speichern und deployen, damit Geheimnisse in den Credential-Store übernommen werden.
+Der Dashboard-Node-Typ `bl-sms-dash` bleibt erhalten. Alte Konfigurationsfelder werden zur Laufzeit unterstützt. Nach dem Upgrade jeden bestehenden Dashboard-Node öffnen, prüfen, speichern und deployen, damit Geheimnisse in den Credential-Store übernommen werden.
 
-## Abgrenzung
-
-Das aktive Auslösen von Alarmen über die separate Alarm API gehört in einen eigenen Output-Node mit klaren Schutzmechanismen.
-
-Weitere Informationen: [README](README.md), [Architektur](docs/ARCHITECTURE.md), [Changelog](CHANGELOG.md), [Mitwirken](CONTRIBUTING.md), [Sicherheit](SECURITY.md).
+Weitere Informationen: [englische README](README.md), [Architektur](docs/ARCHITECTURE.md), [Changelog](CHANGELOG.md), [Mitwirken](CONTRIBUTING.md), [Sicherheit](SECURITY.md).
