@@ -31,7 +31,26 @@
                 $('.node-type-credentials').toggle(!useToken);
             };
 
-            const hasCustomerCredentials = Boolean(this.customerId || this.kid || this.user);
+            // Migrate field names used by versions <= 0.2.0 when the node is saved.
+            if (!this.customerId && this.kid) {
+                $('#node-input-customerId').val(this.kid);
+            }
+            if (!$('#node-input-username').val() && this.user) {
+                $('#node-input-username').val(this.user);
+            }
+            if (!$('#node-input-password').val() && this.password) {
+                $('#node-input-password').val(this.password);
+            }
+            if (!$('#node-input-token').val() && this.token) {
+                $('#node-input-token').val(this.token);
+            }
+            if (this.timer && (!this.interval || this.interval === 10)) {
+                $('#node-input-interval').val(this.timer);
+            }
+
+            const hasCustomerCredentials = Boolean(
+                $('#node-input-customerId').val() || $('#node-input-username').val() || this.kid || this.user
+            );
             loginType.val(hasCustomerCredentials ? 'credentials' : 'token');
             loginType.on('change', updateVisibility);
             updateVisibility();
