@@ -2,27 +2,36 @@
 
 ## Goal
 
-Provide a small, predictable and resilient bridge from the blaulichtSMS Dashboard API into Node-RED without turning the node into a general-purpose API client.
+Provide predictable Node-RED integrations for two distinct blaulichtSMS use cases:
+
+1. receiving Dashboard API data,
+2. explicitly calling Alarm API operations.
+
+The protocol clients are independent from Node-RED so validation, transport and error handling can be tested without a running editor.
 
 ## Components
 
 ### `blaulicht-sms-dash.js`
 
-The Node-RED adapter reads and migrates configuration, resolves credentials, schedules polls, applies retry backoff, suppresses duplicate output, publishes the message contract and stops timers and active requests during redeploy.
+Node-RED input adapter for configuration migration, credentials, completion-based polling, retry backoff, duplicate-output suppression, status reporting and clean shutdown.
 
 ### `lib/blaulicht-sms-client.js`
 
-The protocol client handles HTTPS, timeouts, response limits, JSON parsing, login, session renewal after HTTP 401, typed errors and basic response validation. It contains no Node-RED-specific code.
+Shared HTTPS transport and Dashboard API client. It implements timeouts, response limits, JSON parsing, typed errors, login and one-time session renewal after HTTP 401.
 
-## Authentication
+### `blaulicht-sms-alarm.js`
 
-Dashboard credentials are exchanged for a session ID and can be renewed once after HTTP 401. A manually supplied session token is used directly and cannot be renewed automatically. Secrets are read from `node.credentials`; legacy fields exist only as migration fallbacks.
+Node-RED output adapter for Alarm API operations. It dispatches `trigger`, `query` and `list`, prevents parallel requests, applies live-trigger safeguards, publishes operation metadata and aborts active requests during redeploy.
 
-## Poll lifecycle
+### `lib/blaulicht-sms-alarm-client.js`
+
+Alarm API V1.5 client. It validates request objects, adds automatic-alarm-trigger credentials, calls the documented endpoints and exposes API result codes as typed errors.
+
+## Dashboard lifecycle
 
 1. Schedule an immediate poll.
 2. Create an `AbortController`.
-3. Request dashboard data.
+3. Sign in when required and request dashboard data.
 4. Emit according to the changes-only setting.
 5. Schedule the next poll after completion.
 6. Retry failures with exponential backoff.
@@ -30,10 +39,34 @@ Dashboard credentials are exchanged for a session ID and can be renewed once aft
 
 Completion-based scheduling prevents overlapping requests.
 
-## Output contract
+## Alarm operation lifecycle
 
-`msg.payload` is the unmodified API response. Additive metadata is provided in `msg.topic`, `msg.blaulichtSms.receivedAt` and `msg.blaulichtSms.changed`.
+1. Resolve the configured operation and environment.
+2. Reject unconfirmed live `trigger` operations before network access.
+3. Validate `msg.payload` or configured trigger defaults.
+4. Send exactly one request.
+5. Emit the API result with operation metadata.
+6. Report API and validation errors through the Node-RED `done(error)` contract.
+7. Abort an active request when the node stops.
 
-## Future nodes
+## Trigger safety model
 
-An Alarm API sender must be a separate output node. Its security model, message contract and operational consequences differ substantially from the dashboard input node.
+Staging is the default environment. Live triggering requires an explicit persisted confirmation in the node configuration.
+
+Trigger requests are never retried automatically. A timeout or broken connection can occur after the server accepted the alarm. Retryable transport failures during a trigger are therefore mapped to `TRIGGER_OUTCOME_UNKNOWN`. The operator must use `query` or `list` before deciding whether another trigger is safe.
+
+This avoids pretending that an ambiguous network result is a confirmed failure.
+
+## Credentials
+
+Dashboard credentials, Dashboard session tokens and Alarm API automatic-trigger credentials are stored through Node-RED credentials. Legacy Dashboard fields exist only as migration fallbacks.
+
+## Message contracts
+
+### Dashboard
+
+`msg.payload` remains the unmodified Dashboard API response. Additive metadata is provided in `msg.topic` and `msg.blaulichtSms`.
+
+### Alarm API
+
+The input request is read from `msg.payload`. The successful API result replaces `msg.payload`; other incoming message properties are preserved. Metadata records the operation, selected environment and response timestamp.
