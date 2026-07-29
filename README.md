@@ -6,17 +6,19 @@
 
 Production-oriented Node-RED nodes for the blaulichtSMS Dashboard API and Alarm API.
 
+> **Release status:** `1.0.0-rc.1` is a release candidate. Real Dashboard, staging Alarm API and controlled live-trigger validation are still required before stable `1.0.0`.
+>
 > **Independent community project:** This package is not developed, endorsed or supported by blaulichtSMS.
 
 [Deutsche Dokumentation](README.de.md)
 
 ## Nodes
 
-### BlaulichtSMS Dashboard
+### blaulichtSMS Dashboard
 
 Input node `bl-sms-dash` for receiving dashboard data, alarms and infos. It supports dashboard credentials or an existing session token, automatic session renewal, change filtering and controlled retry backoff.
 
-### BlaulichtSMS Alarm API
+### blaulichtSMS Alarm API
 
 Output node `bl-sms-alarm` for the documented Alarm API V1.5 operations:
 
@@ -24,7 +26,7 @@ Output node `bl-sms-alarm` for the documented Alarm API V1.5 operations:
 - `query`: retrieve one alarm by `alarmId`
 - `list`: list up to 100 alarms for one or more customer IDs
 
-The node supports both the live and staging API. Automatic alarm trigger credentials are stored in Node-RED's credential store.
+The node supports both the official live and staging API environments. Automatic alarm trigger credentials are stored in Node-RED's credential store.
 
 ## Requirements
 
@@ -36,16 +38,17 @@ The node supports both the live and staging API. Automatic alarm trigger credent
 
 ## Installation
 
-```bash
-cd ~/.node-red
-npm install node-red-contrib-blaulicht-sms
-```
-
-For testing the current GitHub version:
+For the release candidate, install from GitHub:
 
 ```bash
 cd ~/.node-red
 npm install github:riederch/node-red-contrib-blaulicht-sms#update/blaulichtsms-dashboard-api-modernization
+```
+
+After npm publication, the package can be installed through the Node-RED Palette Manager or with:
+
+```bash
+npm install node-red-contrib-blaulicht-sms@next
 ```
 
 ## Dashboard output
@@ -98,9 +101,9 @@ Successful results are emitted with topics `blaulichtsms/alarm/trigger`, `blauli
 
 ## Trigger safety
 
-A `trigger` request is sent exactly once. It is **never retried automatically**, because a timeout or broken connection can happen after blaulichtSMS has already accepted the alarm. Retrying could create an unintended second alarm.
+Staging is the default environment. A live `trigger` is rejected until the operator explicitly confirms live alarm triggering in the node configuration.
 
-Use the staging environment for development. The Alarm API requires a separately configured automatic alarm trigger from blaulichtSMS.
+A trigger request is sent exactly once and is **never retried automatically**, because a timeout or broken connection can happen after blaulichtSMS has already accepted the alarm. An ambiguous transport failure is reported as `TRIGGER_OUTCOME_UNKNOWN`. Use `query` or `list` before deciding whether another trigger is safe.
 
 ## Upgrade from 0.2.0
 
