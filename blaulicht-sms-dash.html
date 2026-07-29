@@ -1,124 +1,105 @@
 <script type="text/javascript">
     RED.nodes.registerType('bl-sms-dash', {
-        category: 'input',
+        category: 'network',
         color: '#ffffff',
         defaults: {
-            token: {value: "", required: false},
-            kid: {value: "", required: false},
-            user: {value: "", required: false},
-            password: {value: "", required: false},
-            timer: {
-                value: 10, required: true, validate: function (a) {
-                    return a >= 5 && a <= 420000;
-                }
+            customerId: { value: '', required: false },
+            interval: {
+                value: 10,
+                required: true,
+                validate: RED.validators.number()
             },
-            updateOnly: {value: false,},
-            name: {value: ""}
+            updateOnly: { value: false },
+            name: { value: '' }
         },
-        oneditprepare: function () {
-            $("#node-then-type").on("change", function () {
-                if ($(this).val() == "token") {
-                    $(".node-type-credentials").hide();
-                    $(".node-type-token").show();
-                } else if ($(this).val() == "cred") {
-                    $(".node-type-token").hide();
-                    $(".node-type-credentials").show();
-                }
-            });
-            if (this.kid && this.user && this.password) {
-                $("#node-then-type").val("cred");
-            } else {
-                $("#node-then-type").val("token");
-            }
-            $("#node-then-type").trigger("change");
-        },
-        oneditsave: function () {
-            if ($("#node-then-type").val() == "token") {
-                $("#node-input-kid").val("");
-                $("#node-input-user").val("");
-                $("#node-input-password").val("");
-            }
-            if ($("#node-then-type").val() == "cred") {
-                $("#node-input-token").val("");
-            }
+        credentials: {
+            token: { type: 'password' },
+            username: { type: 'text' },
+            password: { type: 'password' }
         },
         inputs: 0,
         outputs: 1,
-        icon: "blsms-logo.png",
+        icon: 'blsms-logo.png',
         label: function () {
-            return this.name || "BlaulichtSMS Dashboard";
+            return this.name || 'BlaulichtSMS Dashboard';
+        },
+        oneditprepare: function () {
+            const loginType = $('#node-input-loginType');
+            const updateVisibility = function () {
+                const useToken = loginType.val() === 'token';
+                $('.node-type-token').toggle(useToken);
+                $('.node-type-credentials').toggle(!useToken);
+            };
+
+            const hasCustomerCredentials = Boolean(this.customerId || this.kid || this.user);
+            loginType.val(hasCustomerCredentials ? 'credentials' : 'token');
+            loginType.on('change', updateVisibility);
+            updateVisibility();
+        },
+        oneditsave: function () {
+            if ($('#node-input-loginType').val() === 'token') {
+                $('#node-input-customerId').val('');
+                $('#node-input-username').val('');
+                $('#node-input-password').val('');
+            } else {
+                $('#node-input-token').val('');
+            }
         }
     });
 </script>
 
-<script type="text/x-red" data-template-name="bl-sms-dash">
-  <div class="form-row">
-   <label for="node-then-type"><i class="icon-globe"></i> Login Type</label>
-        <select id="node-then-type" style="width:70%;">
-            <option value="token">Token</option>
-            <option value="cred">Credentials</option>
+<script type="text/html" data-template-name="bl-sms-dash">
+    <div class="form-row">
+        <label for="node-input-loginType"><i class="fa fa-sign-in"></i> Login</label>
+        <select id="node-input-loginType" style="width: 70%;">
+            <option value="token">Session token</option>
+            <option value="credentials">Dashboard credentials</option>
         </select>
     </div>
- <div class="form-row node-type-token">
-        <label for="node-input-token"><i class="icon-globe"></i> Token</label>
-        <input type="text" min="40" max="50" id="node-input-token" placeholder="123a4b5c-12a3-1234-a123-1a2345bc678dEFG9H0ijKl">
+    <div class="form-row node-type-token">
+        <label for="node-input-token"><i class="fa fa-key"></i> Token</label>
+        <input type="password" id="node-input-token" placeholder="Session ID">
     </div>
-     <div class="form-row node-type-credentials">
-        <label for="node-input-kid"><i class="icon-globe"></i> Customer ID</label>
-        <input type="number" min="1" id="node-input-kid" placeholder="123456">
+    <div class="form-row node-type-credentials">
+        <label for="node-input-customerId"><i class="fa fa-building"></i> Customer ID</label>
+        <input type="text" id="node-input-customerId" placeholder="123456">
     </div>
-     <div class="form-row node-type-credentials">
-        <label for="node-input-user"><i class="icon-globe"></i> User</label>
-        <input type="text" id="node-input-user" placeholder="einsatzmonitor">
+    <div class="form-row node-type-credentials">
+        <label for="node-input-username"><i class="fa fa-user"></i> Username</label>
+        <input type="text" id="node-input-username" placeholder="dashboard">
     </div>
-     <div class="form-row node-type-credentials">
-        <label for="node-input-password"><i class="icon-globe"></i> Password</label>
-        <input type="password" id="node-input-password" placeholder="*******">
-    </div>
-    <div class="form-row">
-        <label for="node-input-timer"><i class="icon-cog"></i> Interval</label>
-        <input type="number" min="5" max="420000" id="node-input-timer" placeholder="2">
+    <div class="form-row node-type-credentials">
+        <label for="node-input-password"><i class="fa fa-lock"></i> Password</label>
+        <input type="password" id="node-input-password">
     </div>
     <div class="form-row">
-        <label for="node-input-updateOnly"><i class="icon-cog"></i> Message on update only</label>
-        <input type="checkbox" id="node-input-updateOnly">
+        <label for="node-input-interval"><i class="fa fa-clock-o"></i> Interval</label>
+        <input type="number" id="node-input-interval" min="5" step="1">
     </div>
     <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
+        <label for="node-input-updateOnly"><i class="fa fa-filter"></i> Changes only</label>
+        <input type="checkbox" id="node-input-updateOnly" style="width: auto; vertical-align: top;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="BlaulichtSMS Dashboard">
     </div>
 </script>
 
-<script type="text/x-red" data-help-name="bl-sms-dash">
-    <p>A BlaulichtSMS Dashboard API node for getting alarms and infos</p>
-    
-    <h3>Outputs</h3>
-     <ul class="node-ports">
-         <li>
-             <dl class="message-properties">
-                 <dt>msg.payload</dt> contains the received object described in the
-                 <a href="https://github.com/blaulichtSMS/docs/blob/master/dashboard_api_v1.md#dasboard-informationen">API Description</a>.
-             </dl>
-         </li>
-     </ul>
-     <h3>Config</h3>
-     <ul class="node-ports">
-         <li>
-             Customer ID, User and Password
-             <dl class="message-properties">
-                 The user data for this is the same as that used to log in to <a href="https://dashboard.blaulichtsms.net">https://dashboard.blaulichtsms.net</a>.
-             </dl>
-             </li>
-              <li> Interval
-             <dl class="message-properties">
-                The request interval(in seconds) can be selected on your own.
-             </dl>
-              </li>
-              <li>  Message on update only
-             <dl class="message-properties">
-                You can choose if you want every message or avoid duplicates.<br>
-                (!) Not every message is an alarm or info. There will also be an event if you only schedule an alert.
-             </dl>
-         </li>
-     </ul>
+<script type="text/html" data-help-name="bl-sms-dash">
+    <p>Polls the blaulichtSMS Dashboard API and emits the current dashboard data.</p>
+
+    <h3>Output</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>The Dashboard API response containing customer data, integrations, alarms and infos.</dd>
+    </dl>
+
+    <h3>Configuration</h3>
+    <p>Use either an existing session token or the credentials of a dashboard created in the blaulichtSMS web platform.</p>
+    <p>The polling interval is specified in seconds and must be at least 5 seconds. Enable <b>Changes only</b> to suppress unchanged responses.</p>
+
+    <h3>Details</h3>
+    <p>Expired sessions created from dashboard credentials are renewed automatically after an HTTP 401 response. A manually supplied token cannot be renewed automatically.</p>
+    <p><a href="https://github.com/blaulichtSMS/docs/blob/master/dashboard_api_v1.md">blaulichtSMS Dashboard API documentation</a></p>
 </script>
