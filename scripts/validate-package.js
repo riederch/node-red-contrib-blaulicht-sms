@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 assert.equal(packageJson.name, 'node-red-contrib-blaulicht-sms');
-assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
+assert.match(packageJson.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
 assert.ok(packageJson.keywords.includes('node-red'));
 assert.equal(packageJson.license, 'MIT');
 assert.ok(packageJson.repository.url.includes('riederch/node-red-contrib-blaulicht-sms'));
@@ -20,14 +20,23 @@ for (const nodeFile of Object.values(packageJson['node-red'].nodes)) {
     const htmlPath = javascriptPath.replace(/\.js$/, '.html');
     assert.ok(fs.existsSync(javascriptPath), `Missing Node-RED runtime file: ${nodeFile}`);
     assert.ok(fs.existsSync(htmlPath), `Missing Node-RED editor file: ${path.relative(root, htmlPath)}`);
+
+    const html = fs.readFileSync(htmlPath, 'utf8');
+    const iconMatch = html.match(/icon:\s*['"]([^'"]+)['"]/);
+    if (iconMatch && !iconMatch[1].startsWith('font-awesome/')) {
+        const iconPath = path.join(root, 'icons', iconMatch[1]);
+        assert.ok(fs.existsSync(iconPath), `Missing custom Node-RED icon: ${path.relative(root, iconPath)}`);
+    }
 }
 
 const requiredFiles = [
     'README.md',
+    'README.de.md',
     'LICENSE',
     'CHANGELOG.md',
     'SECURITY.md',
-    'CONTRIBUTING.md'
+    'CONTRIBUTING.md',
+    'docs/ARCHITECTURE.md'
 ];
 for (const file of requiredFiles) {
     assert.ok(fs.existsSync(path.join(root, file)), `Missing required project file: ${file}`);
