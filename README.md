@@ -1,47 +1,69 @@
-# Node-Red-Contrib-Blaulicht-SMS
-Node-Red-Contrib-Blaulicht-SMS ist eine Node-Red Integration für die [BlaulichtSMS API](https://github.com/blaulichtSMS/docs).
+# node-red-contrib-blaulicht-sms
 
-Man kann damit, z.B. am Raspberry Pi, Alarme oder Infos empfangen und damit was auch immer anstellen :)  
-Ein Beispiel wäre das Schalten von Monitoren über HDMI mit [Node-Red-Contrib-Cec](https://github.com/damoclark/node-red-contrib-cec).
+Node-RED integration for the [blaulichtSMS Dashboard API](https://github.com/blaulichtSMS/docs/blob/master/dashboard_api_v1.md).
 
-#### Momentan ist ein Node implementiert:  
-![BlaulichtSMS Dashboard Node](https://raw.githubusercontent.com/riederch/node-red-contrib-blaulicht-sms/develop/examples/blsms-dash-node1.png)
-##### Am Output erwartet euch:
-```
-msg.payload: {
-                 "customerId" : "123456",
-                 "customerName" : "FF Test",
-                 "username" : "einsatzmonitor",
-                 "integrations" : [ ], // Liste an Integrationen
-                 "alarms" : [ ], // Liste von AlarmData Elementen
-                 "infos" : [ ] // List von AlarmData Elementen
-             }
-```
-Nähere Infos unter [Dasboard Informationen](https://github.com/blaulichtSMS/docs/blob/master/dashboard_api_v1.md#dasboard-informationen).
+The node polls a blaulichtSMS dashboard and emits its current data as `msg.payload`. This includes customer information, integrations, alarms and infos.
 
-#### Als Zugangsdaten werden die eures Einsatzmonitors verwendet (oder der Token):
-![BlaulichtSMS Dashboard Node Config](https://raw.githubusercontent.com/riederch/node-red-contrib-blaulicht-sms/develop/examples/blsms-dash-node-config1.png)  
-Das Abfrageintervall ist frei wählbar und der Node kann kontinuierlich oder nur nach Änderungen eine Message weitersenden.
+## Requirements
 
-# Installation
-[Download](https://github.com/riederch/node-red-contrib-blaulicht-sms/raw/master/node-red-contrib-blaulicht-sms-0.2.0.tgz)
+- Node.js 18 or newer
+- Node-RED 3.0 or newer
+- A dashboard configured in the blaulichtSMS web platform
 
-Danach übers Menü importieren:
+## Installation
 
-<img width="200" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134506930-466323dc-edc6-45aa-9496-64b4c168c9c4.png"> <img width="500" alt="grafik" src="https://user-images.githubusercontent.com/11293087/134507022-a217830a-3ca3-4635-be3f-2e7c7ddfce77.png">
+Install from the Node-RED palette or from the command line in your Node-RED user directory:
 
-
-
-### Manueller Build:
-```
-mkdir ~/install_tmp
-cd ~/install_tmp
-git clone https://github.com/riederch/node-red-contrib-blaulicht-sms.git
-npm pack node-red-contrib-blaulicht-sms/
-mv ~/install_tmp/node-red-contrib-blaulicht-sms-0.2.0.tgz ~/node-red-contrib-blaulicht-sms-0.2.0.tgz
-cd ~
-rm -rf ~/install_tmp
+```bash
+npm install node-red-contrib-blaulicht-sms
 ```
 
-# Geplant:
-* Node für die Alarm API
+To install directly from GitHub:
+
+```bash
+npm install github:riederch/node-red-contrib-blaulicht-sms
+```
+
+Restart Node-RED after installation.
+
+## Configuration
+
+The node supports both authentication methods accepted by the Dashboard API:
+
+1. **Session token**: use an existing Dashboard API session ID.
+2. **Dashboard credentials**: customer ID, dashboard username and password. The node logs in automatically and renews an expired session after an HTTP 401 response.
+
+The polling interval is configured in seconds with a minimum of 5 seconds. With **Changes only** enabled, the node emits a message only when the complete API response changes.
+
+Credentials and tokens are stored through Node-RED's credential system rather than in the exported flow JSON.
+
+## Output
+
+```js
+msg.payload = {
+  customerId: '123456',
+  customerName: 'FF Test',
+  username: 'dashboard',
+  integrations: [],
+  alarms: [],
+  infos: []
+};
+```
+
+The exact object structures are documented in the official [Dashboard API V1 documentation](https://github.com/blaulichtSMS/docs/blob/master/dashboard_api_v1.md).
+
+## Upgrade from 0.2.0
+
+The node type remains `bl-sms-dash`, so existing flows continue to load. Legacy configuration fields are read as a compatibility fallback. Open and save each existing node once to move the token or password into Node-RED's protected credential store and to use the renamed configuration fields.
+
+## Development
+
+```bash
+npm test
+npm run check
+npm pack --dry-run
+```
+
+## License
+
+MIT
