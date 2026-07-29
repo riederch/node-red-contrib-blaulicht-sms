@@ -1,19 +1,36 @@
 {
   "name": "node-red-contrib-blaulicht-sms",
-  "version": "0.2.0",
-  "description": "A BlaulichtSMS API access for Node Red",
+  "version": "1.0.0",
+  "description": "Node-RED node for receiving alarms and information from the blaulichtSMS Dashboard API",
+  "keywords": [
+    "node-red",
+    "blaulichtsms",
+    "fire brigade",
+    "alarm",
+    "dashboard"
+  ],
   "license": "MIT",
   "author": {
-    "name": "riederch"
+    "name": "Christoph Rieder"
   },
-  "dependencies": {
-    "node-rest-client": "3.1.0"
+  "homepage": "https://github.com/riederch/node-red-contrib-blaulicht-sms#readme",
+  "bugs": {
+    "url": "https://github.com/riederch/node-red-contrib-blaulicht-sms/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/oe8chk/node-red-contrib-blaulicht-sms"
+    "url": "git+https://github.com/riederch/node-red-contrib-blaulicht-sms.git"
+  },
+  "main": "blaulicht-sms-dash.js",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check blaulicht-sms-dash.js"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "node-red": {
+    "version": ">=3.0.0",
     "nodes": {
       "blaulicht-sms-dash": "blaulicht-sms-dash.js"
     }
