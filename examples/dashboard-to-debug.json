@@ -1,0 +1,38 @@
+[
+  {
+    "id": "e8e6f4a3a834d001",
+    "type": "tab",
+    "label": "blaulichtSMS dashboard",
+    "disabled": false,
+    "info": "Configure the blaulichtSMS node with a dedicated dashboard account.",
+    "env": []
+  },
+  {
+    "id": "c366f868b8972170",
+    "type": "bl-sms-dash",
+    "z": "e8e6f4a3a834d001",
+    "name": "blaulichtSMS",
+    "authType": "credentials",
+    "customerId": "",
+    "interval": 10,
+    "updateOnly": true,
+    "x": 190,
+    "y": 120,
+    "wires": [["2206e7135be29bb1"]]
+  },
+  {
+    "id": "2206e7135be29bb1",
+    "type": "debug",
+    "z": "e8e6f4a3a834d001",
+    "name": "dashboard data",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 430,
+    "y": 120,
+    "wires": []
+  }
+]
