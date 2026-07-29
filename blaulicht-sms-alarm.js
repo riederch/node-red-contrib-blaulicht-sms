@@ -4,13 +4,56 @@ const { BlaulichtSmsAlarmClient, STAGING_BASE_URL } = require('./lib/blaulicht-s
 const { DEFAULT_BASE_URL } = require('./lib/blaulicht-sms-client');
 
 const OPERATIONS = new Set(['trigger', 'query', 'list']);
+const AMBIGUOUS_TRIGGER_ERROR_CODES = new Set([
+    'ETIMEDOUT',
+    'ECONNRESET',
+    'ECONNABORTED',
+    'EPIPE',
+    'NETWORK_ERROR',
+    'EAI_AGAIN'
+]);
 
 function normalizeOperation(value) {
     const operation = String(value || 'trigger').trim().toLowerCase();
     if (!OPERATIONS.has(operation)) {
-        throw new Error(`Unsupported Alarm API operation: ${operation}`);
+        const error = new Error(`Unsupported Alarm API operation: ${operation}`);
+        error.code = 'UNSUPPORTED_OPERATION';
+        throw error;
     }
     return operation;
+}
+
+function isEnabled(value) {
+    return value === true || value === 'true';
+}
+
+function assertLiveTriggerAllowed(operation, environment, liveTriggerEnabled) {
+    if (operation === 'trigger' && environment === 'live' && !liveTriggerEnabled) {
+        const error = new Error(
+            'Live alarm triggering is disabled. Enable the explicit live-trigger confirmation in the node configuration.'
+        );
+        error.code = 'LIVE_TRIGGER_NOT_ENABLED';
+        throw error;
+    }
+}
+
+function normalizeOperationError(error, operation) {
+    if (
+        operation === 'trigger' &&
+        error &&
+        (error.retryable || AMBIGUOUS_TRIGGER_ERROR_CODES.has(error.code))
+    ) {
+        const uncertain = new Error(
+            'The trigger request did not complete reliably. The alarm may already have been accepted; verify it with query or list before sending another trigger.'
+        );
+        uncertain.name = 'BlaulichtSmsTriggerOutcomeUnknownError';
+        uncertain.code = 'TRIGGER_OUTCOME_UNKNOWN';
+        uncertain.apiError = error.apiError;
+        uncertain.statusCode = error.statusCode;
+        uncertain.cause = error;
+        return uncertain;
+    }
+    return error;
 }
 
 function resolveInput(msg, config) {
@@ -43,12 +86,13 @@ function createRegistration(dependencies = {}) {
             const node = this;
             const credentials = node.credentials || {};
             const operation = normalizeOperation(config.operation);
-            const environment = config.environment === 'staging' ? 'staging' : 'live';
+            const environment = config.environment === 'live' ? 'live' : 'staging';
+            const liveTriggerEnabled = isEnabled(config.liveTriggerEnabled);
             const client = clientFactory({
                 customerId: config.customerId,
                 username: credentials.username,
                 password: credentials.password,
-                baseUrl: environment === 'staging' ? STAGING_BASE_URL : DEFAULT_BASE_URL
+                baseUrl: environment === 'live' ? DEFAULT_BASE_URL : STAGING_BASE_URL
             });
 
             let requestInProgress = false;
@@ -58,13 +102,21 @@ function createRegistration(dependencies = {}) {
 
             node.on('input', async (msg, send, done) => {
                 const output = typeof send === 'function' ? send : node.send.bind(node);
-                const complete = typeof done === 'function' ? done : () => {};
+                const hasDone = typeof done === 'function';
+                const complete = hasDone ? done : () => {};
+                const fail = (error) => {
+                    if (hasDone) {
+                        complete(error);
+                    } else {
+                        node.error(error.message, msg);
+                    }
+                };
 
                 if (requestInProgress) {
                     const error = new Error('An Alarm API request is already in progress');
                     error.code = 'REQUEST_IN_PROGRESS';
                     node.status({ fill: 'yellow', shape: 'ring', text: 'busy' });
-                    complete(error);
+                    fail(error);
                     return;
                 }
 
@@ -73,6 +125,7 @@ function createRegistration(dependencies = {}) {
                 node.status({ fill: 'yellow', shape: 'dot', text: operation });
 
                 try {
+                    assertLiveTriggerAllowed(operation, environment, liveTriggerEnabled);
                     const input = resolveInput(msg, { ...config, operation });
                     let result;
                     if (operation === 'trigger') {
@@ -83,7 +136,7 @@ function createRegistration(dependencies = {}) {
                         result = await client.listAlarms(input, { signal: abortController.signal });
                     }
 
-                    const responseMessage = {
+                    output({
                         ...msg,
                         topic: `blaulichtsms/alarm/${operation}`,
                         payload: result,
@@ -92,17 +145,16 @@ function createRegistration(dependencies = {}) {
                             environment,
                             receivedAt: now().toISOString()
                         }
-                    };
-                    output(responseMessage);
+                    });
                     node.status({ fill: 'green', shape: 'dot', text: 'success' });
                     complete();
-                } catch (error) {
-                    if (error && error.name === 'AbortError') {
+                } catch (cause) {
+                    if (cause && cause.name === 'AbortError') {
                         complete();
                     } else {
+                        const error = normalizeOperationError(cause, operation);
                         node.status({ fill: 'red', shape: 'ring', text: error.apiError || error.code || 'error' });
-                        node.error(error.message, msg);
-                        complete(error);
+                        fail(error);
                     }
                 } finally {
                     requestInProgress = false;
@@ -132,8 +184,12 @@ function createRegistration(dependencies = {}) {
 
 module.exports = createRegistration();
 module.exports._internals = {
+    AMBIGUOUS_TRIGGER_ERROR_CODES,
     OPERATIONS,
+    assertLiveTriggerAllowed,
     createRegistration,
+    isEnabled,
     normalizeOperation,
+    normalizeOperationError,
     resolveInput
 };
