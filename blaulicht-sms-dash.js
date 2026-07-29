@@ -1,162 +1,219 @@
-/*
- * src:
- * https://github.com/blaulichtSMS/docs/blob/master/dashboard_api_v1.md
- * https://github.com/node-red/node-red-nodes/blob/master/io/snmp/snmp.html
- * https://nodered.org/docs/creating-nodes/status
- */
-module.exports = function (RED) {
+'use strict';
 
-    /**
-     * @param config
-     */
-    function BlSmsNodeDash(config) {
-        RED.nodes.createNode(this, config);
+const { isDeepStrictEqual } = require('node:util');
+const { version: packageVersion } = require('./package.json');
+const {
+    BlaulichtSmsDashboardClient,
+    BlaulichtSmsError
+} = require('./lib/blaulicht-sms-client');
 
-        this.host = "https://api.blaulichtsms.net/blaulicht/";
-        this.api = "api/alarm/v1/dashboard/";
-        this.login = "api/alarm/v1/dashboard/login";
-        this.token = config.token;
-        this.kid = config.kid;
-        this.user = config.user;
-        this.pass = config.password;
-        this.updateOnly = config.updateOnly;
-        this.timer = config.timer * 1000;
-        this.sessionKey = null;
-        this.prevData = {};
+const MIN_INTERVAL_SECONDS = 5;
+const MAX_INTERVAL_SECONDS = 86400;
+const DEFAULT_INTERVAL_SECONDS = 10;
+const MAX_RETRY_DELAY_MS = 5 * 60 * 1000;
 
-        let Client = require('node-rest-client').Client;
-        this.client = new Client();
+function parseIntervalSeconds(value) {
+    const interval = Number(value);
+    if (!Number.isInteger(interval) || interval < MIN_INTERVAL_SECONDS || interval > MAX_INTERVAL_SECONDS) {
+        return DEFAULT_INTERVAL_SECONDS;
+    }
+    return interval;
+}
 
-        let node = this;
-        this.status({fill: "grey", shape: "ring", text: "disconnected"});
-
-        let apiEndpoint;
-        node.tout = setInterval(function () {
-            //if( i++ == 10) node.sessionKey += 'a'; //  simulate expired key
-            if (!node.token) {
-                // request Api Key if not set
-                if (!node.sessionKey) {
-                    apiEndpoint = node.host + node.login;
-                    let args = {
-                        data: {
-                            username: node.user,
-                            password: node.pass,
-                            customerId: node.kid
-                        },
-                        headers: {"Content-Type": "application/json"}
-                    };
-
-                    node.client.post(apiEndpoint, args, function (data, response) {
-                        //console.log("BlSms login:"+response.statusCode);
-                        if (data.error === null) {
-                            node.sessionKey = data.sessionId;
-                            //console.log("BlSms login: got session ID");
-                            node.status({fill: "green", shape: "dot", text: "session OK"});
-                        } else {
-                            if (data.error) {
-                                //console.log("BlSms login: got error message "+data.error);
-                                node.status({fill: "red", shape: "dot", text: "session Err: " + data.error});
-                            } else {
-                                //console.log("BlSms login: http code "+response.statusCode);
-                                node.status({
-                                    fill: "red",
-                                    shape: "dot",
-                                    text: "connection Err: " + response.statusCode
-                                });
-                            }
-                        }
-                    }).on('error', function (err) {
-                        console.log("Exception on requesting data from BlaulichtSMS :" + err);
-                        node.status({fill: "red", shape: "ring", text: "connection Err: " + err});
-                    });
-                }
-            } else {
-                node.sessionKey = node.token;
-            }
-            // request data
-            if (node.sessionKey) {
-                node.status({fill: "green", shape: "ring", text: "requesting"});
-                apiEndpoint = node.host + node.api + node.sessionKey;
-                node.client.get(apiEndpoint, function (data, response) {
-                    if (response.statusCode === 200) {
-                        node.status({fill: "green", shape: "dot", text: "received data"});
-                        //console.log("BlSms data: got data");
-                        if (node.updateOnly) {
-                            //console.log("updating only");
-                            if (!equalObject(data, node.prevData)) {
-                                node.send({payload: data});
-                            }
-                        } else {
-                            //console.log("send every");
-                            node.send({payload: data});
-                        }
-                        node.prevData = data;
-                    } else {
-                        if (node.token) {
-                            node.status({
-                                fill: "red",
-                                shape: "ring",
-                                text: "connection Err: given login token is not valid"
-                            });
-                        } else {
-                            node.sessionKey = null;
-                            //console.log("BlSms data: http code "+response.statusCode);
-                            node.status({fill: "red", shape: "ring", text: "connection Err: " + response.statusCode});
-                        }
-                    }
-                }).on('error', function (err) {
-                    // console.log("Exception on requesting data from BlaulichtSMS :" + err);
-                    node.status({fill: "red", shape: "ring", text: "connection Err: " + err});
-                });
-            }
-        }, node.timer);
-
-        this.on("close", function () {
-            if (this.tout) {
-                clearInterval(this.tout);
-            }
-        });
-
-        /**
-         * Compares two objects for equality
-         *
-         * @param a object1
-         * @param b object2
-         * @return bool
-         */
-        function equalObject(a, b) {
-            for (let key in a) {
-                if (a.hasOwnProperty(key) !== b.hasOwnProperty(key)) {
-                    return false;
-                }
-                let value = a[key];
-                let value2 = b[key];
-
-                switch (typeof (value)) {
-                    case 'object':
-                        if (!equalObject(value, value2)) {
-                            return false;
-                        }
-                        break;
-                    case 'function':
-                        if (typeof (value2) == 'undefined' || value.toString() != value2.toString()) {
-                            return false;
-                        }
-                        break;
-                    default:
-                        if (value != value2) {
-                            return false;
-                        }
-                }
-            }
-            for (key in b) {
-                if (typeof (a[key]) == 'undefined') {
-                    return false;
-                }
-            }
-            return true;
-        }
+function inferAuthType(config, credentials) {
+    if (config.authType === 'token' || config.authType === 'credentials') {
+        return config.authType;
     }
 
-    RED.nodes.registerType("bl-sms-dash", BlSmsNodeDash);
+    const hasToken = Boolean(credentials.token || config.token);
+    const hasCredentials = Boolean(
+        credentials.username ||
+        credentials.password ||
+        config.user ||
+        config.password ||
+        config.customerId ||
+        config.kid
+    );
+    return hasToken && !hasCredentials ? 'token' : 'credentials';
+}
+
+function resolveConfiguration(config, credentials = {}) {
+    const authType = inferAuthType(config, credentials);
+    return {
+        authType,
+        token: credentials.token || config.token || '',
+        username: credentials.username || config.user || '',
+        password: credentials.password || config.password || '',
+        customerId: String(config.customerId || config.kid || '').trim(),
+        intervalSeconds: parseIntervalSeconds(config.interval || config.timer),
+        updateOnly: config.updateOnly === true || config.updateOnly === 'true'
+    };
+}
+
+function calculateRetryDelay(intervalMs, consecutiveFailures) {
+    const exponent = Math.max(0, Math.min(consecutiveFailures - 1, 6));
+    return Math.min(intervalMs * (2 ** exponent), MAX_RETRY_DELAY_MS);
+}
+
+function errorPresentation(error) {
+    const code = error && error.code;
+    switch (code) {
+        case 'CONFIGURATION_ERROR':
+            return { status: 'configuration error', log: 'configuration error' };
+        case 'LOGIN_FAILED':
+            return { status: 'login failed', log: 'login failed' };
+        case 'TOKEN_REJECTED':
+            return { status: 'token rejected', log: 'token rejected' };
+        case 'INVALID_JSON':
+        case 'INVALID_RESPONSE':
+        case 'RESPONSE_TOO_LARGE':
+            return { status: 'invalid response', log: 'invalid API response' };
+        default:
+            return { status: 'connection error', log: 'connection error' };
+    }
+}
+
+function createRegistration(dependencies = {}) {
+    const clientFactory = dependencies.clientFactory || ((options) => new BlaulichtSmsDashboardClient(options));
+    const setTimeoutFn = dependencies.setTimeoutFn || setTimeout;
+    const clearTimeoutFn = dependencies.clearTimeoutFn || clearTimeout;
+    const now = dependencies.now || (() => new Date());
+
+    return function registerNode(RED) {
+        function BlaulichtSmsDashboardNode(config) {
+            RED.nodes.createNode(this, config);
+            const node = this;
+            const resolved = resolveConfiguration(config, node.credentials || {});
+            const intervalMs = resolved.intervalSeconds * 1000;
+            const client = clientFactory({
+                authType: resolved.authType,
+                token: resolved.token,
+                username: resolved.username,
+                password: resolved.password,
+                customerId: resolved.customerId,
+                userAgent: `node-red-contrib-blaulicht-sms/${packageVersion}`
+            });
+
+            let timer = null;
+            let abortController = null;
+            let stopped = false;
+            let previousData;
+            let consecutiveFailures = 0;
+            let lastLoggedError = null;
+
+            function setStatus(fill, shape, text) {
+                node.status({ fill, shape, text });
+            }
+
+            function schedule(delayMs) {
+                if (stopped) {
+                    return;
+                }
+                timer = setTimeoutFn(runPoll, delayMs);
+            }
+
+            function reportError(error) {
+                const presentation = errorPresentation(error);
+                setStatus('red', 'ring', presentation.status);
+                const details = error && error.message ? error.message : String(error);
+                const signature = `${error && error.code}|${error && error.statusCode}|${details}`;
+                if (signature !== lastLoggedError) {
+                    node.error(`${presentation.log}: ${details}`);
+                    lastLoggedError = signature;
+                }
+            }
+
+            async function runPoll() {
+                if (stopped) {
+                    return;
+                }
+
+                timer = null;
+                abortController = new AbortController();
+                setStatus('yellow', 'ring', 'requesting');
+
+                try {
+                    const data = await client.getDashboard({ signal: abortController.signal });
+                    if (stopped) {
+                        return;
+                    }
+
+                    const changed = previousData === undefined || !isDeepStrictEqual(data, previousData);
+                    setStatus('green', 'dot', 'connected');
+                    if (!resolved.updateOnly || changed) {
+                        node.send({
+                            topic: 'blaulichtsms/dashboard',
+                            payload: data,
+                            blaulichtSms: {
+                                receivedAt: now().toISOString(),
+                                changed
+                            }
+                        });
+                    }
+
+                    previousData = data;
+                    consecutiveFailures = 0;
+                    lastLoggedError = null;
+                    schedule(intervalMs);
+                } catch (error) {
+                    if (stopped && (error.name === 'AbortError' || error.code === 'ABORT_ERR')) {
+                        return;
+                    }
+
+                    consecutiveFailures += 1;
+                    reportError(error);
+                    schedule(calculateRetryDelay(intervalMs, consecutiveFailures));
+                } finally {
+                    abortController = null;
+                }
+            }
+
+            setStatus('grey', 'ring', 'starting');
+            schedule(0);
+
+            node.on('close', (removed, done) => {
+                if (typeof removed === 'function') {
+                    done = removed;
+                }
+                stopped = true;
+                if (timer !== null) {
+                    clearTimeoutFn(timer);
+                    timer = null;
+                }
+                if (abortController) {
+                    abortController.abort();
+                    abortController = null;
+                }
+                node.status({});
+                if (typeof done === 'function') {
+                    done();
+                }
+            });
+        }
+
+        RED.nodes.registerType('bl-sms-dash', BlaulichtSmsDashboardNode, {
+            credentials: {
+                token: { type: 'password' },
+                username: { type: 'text' },
+                password: { type: 'password' }
+            }
+        });
+    };
+}
+
+const registerNode = createRegistration();
+
+module.exports = registerNode;
+module.exports._internals = {
+    BlaulichtSmsError,
+    DEFAULT_INTERVAL_SECONDS,
+    MAX_INTERVAL_SECONDS,
+    MAX_RETRY_DELAY_MS,
+    MIN_INTERVAL_SECONDS,
+    calculateRetryDelay,
+    createRegistration,
+    errorPresentation,
+    inferAuthType,
+    parseIntervalSeconds,
+    resolveConfiguration
 };
