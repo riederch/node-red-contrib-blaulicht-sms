@@ -1,15 +1,24 @@
 <script type="text/javascript">
     RED.nodes.registerType('bl-sms-dash', {
         category: 'network',
-        color: '#ffffff',
+        color: '#F3B567',
         defaults: {
-            customerId: { value: '', required: false },
+            authType: { value: 'credentials', required: true },
+            customerId: {
+                value: '',
+                validate: function (value) {
+                    return this.authType !== 'credentials' || String(value || '').trim().length > 0;
+                }
+            },
             interval: {
                 value: 10,
                 required: true,
-                validate: RED.validators.number()
+                validate: function (value) {
+                    const interval = Number(value);
+                    return Number.isInteger(interval) && interval >= 5 && interval <= 86400;
+                }
             },
-            updateOnly: { value: false },
+            updateOnly: { value: true },
             name: { value: '' }
         },
         credentials: {
@@ -19,44 +28,51 @@
         },
         inputs: 0,
         outputs: 1,
-        icon: 'blsms-logo.png',
+        outputLabels: ['dashboard data'],
+        icon: 'font-awesome/fa-bell',
+        paletteLabel: 'blaulichtSMS',
         label: function () {
-            return this.name || 'BlaulichtSMS Dashboard';
+            return this.name || 'blaulichtSMS';
+        },
+        labelStyle: function () {
+            return this.name ? 'node_label_italic' : '';
         },
         oneditprepare: function () {
-            const loginType = $('#node-input-loginType');
-            const updateVisibility = function () {
-                const useToken = loginType.val() === 'token';
-                $('.node-type-token').toggle(useToken);
-                $('.node-type-credentials').toggle(!useToken);
-            };
+            const credentials = this.credentials || {};
+            const authTypeInput = $('#node-input-authType');
 
-            // Migrate field names used by versions <= 0.2.0 when the node is saved.
+            // Migrate configuration fields used by versions <= 0.2.0.
             if (!this.customerId && this.kid) {
                 $('#node-input-customerId').val(this.kid);
             }
-            if (!$('#node-input-username').val() && this.user) {
+            if (!credentials.username && this.user) {
                 $('#node-input-username').val(this.user);
             }
-            if (!$('#node-input-password').val() && this.password) {
+            if (!credentials.has_password && this.password) {
                 $('#node-input-password').val(this.password);
             }
-            if (!$('#node-input-token').val() && this.token) {
+            if (!credentials.has_token && this.token) {
                 $('#node-input-token').val(this.token);
             }
             if (this.timer && (!this.interval || this.interval === 10)) {
                 $('#node-input-interval').val(this.timer);
             }
 
-            const hasCustomerCredentials = Boolean(
-                $('#node-input-customerId').val() || $('#node-input-username').val() || this.kid || this.user
-            );
-            loginType.val(hasCustomerCredentials ? 'credentials' : 'token');
-            loginType.on('change', updateVisibility);
+            if (!this.authType || (this.token && !this.kid && !this.user)) {
+                authTypeInput.val('token');
+            }
+
+            function updateVisibility() {
+                const useToken = authTypeInput.val() === 'token';
+                $('.node-type-token').toggle(useToken);
+                $('.node-type-credentials').toggle(!useToken);
+            }
+
+            authTypeInput.on('change', updateVisibility);
             updateVisibility();
         },
         oneditsave: function () {
-            if ($('#node-input-loginType').val() === 'token') {
+            if ($('#node-input-authType').val() === 'token') {
                 $('#node-input-customerId').val('');
                 $('#node-input-username').val('');
                 $('#node-input-password').val('');
@@ -69,15 +85,15 @@
 
 <script type="text/html" data-template-name="bl-sms-dash">
     <div class="form-row">
-        <label for="node-input-loginType"><i class="fa fa-sign-in"></i> Login</label>
-        <select id="node-input-loginType" style="width: 70%;">
-            <option value="token">Session token</option>
+        <label for="node-input-authType"><i class="fa fa-sign-in"></i> Authentication</label>
+        <select id="node-input-authType" style="width: 70%;">
             <option value="credentials">Dashboard credentials</option>
+            <option value="token">Session token</option>
         </select>
     </div>
     <div class="form-row node-type-token">
-        <label for="node-input-token"><i class="fa fa-key"></i> Token</label>
-        <input type="password" id="node-input-token" placeholder="Session ID">
+        <label for="node-input-token"><i class="fa fa-key"></i> Session token</label>
+        <input type="password" id="node-input-token" autocomplete="new-password">
     </div>
     <div class="form-row node-type-credentials">
         <label for="node-input-customerId"><i class="fa fa-building"></i> Customer ID</label>
@@ -85,15 +101,15 @@
     </div>
     <div class="form-row node-type-credentials">
         <label for="node-input-username"><i class="fa fa-user"></i> Username</label>
-        <input type="text" id="node-input-username" placeholder="dashboard">
+        <input type="text" id="node-input-username" autocomplete="username">
     </div>
     <div class="form-row node-type-credentials">
         <label for="node-input-password"><i class="fa fa-lock"></i> Password</label>
-        <input type="password" id="node-input-password">
+        <input type="password" id="node-input-password" autocomplete="new-password">
     </div>
     <div class="form-row">
-        <label for="node-input-interval"><i class="fa fa-clock-o"></i> Interval</label>
-        <input type="number" id="node-input-interval" min="5" step="1">
+        <label for="node-input-interval"><i class="fa fa-clock-o"></i> Poll interval</label>
+        <input type="number" id="node-input-interval" min="5" max="86400" step="1">
     </div>
     <div class="form-row">
         <label for="node-input-updateOnly"><i class="fa fa-filter"></i> Changes only</label>
@@ -101,24 +117,43 @@
     </div>
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="BlaulichtSMS Dashboard">
+        <input type="text" id="node-input-name" placeholder="blaulichtSMS">
+    </div>
+    <div class="form-tips">
+        The minimum polling interval is 5 seconds. Credentials and tokens are stored in the Node-RED credential store.
     </div>
 </script>
 
 <script type="text/html" data-help-name="bl-sms-dash">
-    <p>Polls the blaulichtSMS Dashboard API and emits the current dashboard data.</p>
+    <p>Receives current alarm and information data from a blaulichtSMS dashboard.</p>
 
-    <h3>Output</h3>
+    <h3>Outputs</h3>
     <dl class="message-properties">
         <dt>payload <span class="property-type">object</span></dt>
-        <dd>The Dashboard API response containing customer data, integrations, alarms and infos.</dd>
+        <dd>The unmodified Dashboard API response.</dd>
+        <dt>topic <span class="property-type">string</span></dt>
+        <dd><code>blaulichtsms/dashboard</code></dd>
+        <dt>blaulichtSms <span class="property-type">object</span></dt>
+        <dd>Metadata containing <code>receivedAt</code> and <code>changed</code>.</dd>
     </dl>
 
     <h3>Configuration</h3>
-    <p>Use either an existing session token or the credentials of a dashboard created in the blaulichtSMS web platform.</p>
-    <p>The polling interval is specified in seconds and must be at least 5 seconds. Enable <b>Changes only</b> to suppress unchanged responses.</p>
+    <p>
+        Use the credentials of a dashboard created in the blaulichtSMS web platform. The node signs in automatically and renews an expired session once after an HTTP 401 response.
+    </p>
+    <p>
+        An existing session token can be supplied instead. Manually supplied tokens cannot be renewed automatically.
+    </p>
+    <p>
+        The poll interval is specified in seconds. When <b>Changes only</b> is enabled, unchanged responses are not emitted.
+    </p>
 
-    <h3>Details</h3>
-    <p>Expired sessions created from dashboard credentials are renewed automatically after an HTTP 401 response. A manually supplied token cannot be renewed automatically.</p>
-    <p><a href="https://github.com/blaulichtSMS/docs/blob/master/dashboard_api_v1.md">blaulichtSMS Dashboard API documentation</a></p>
+    <h3>Error handling</h3>
+    <p>
+        Network, authentication and response errors are reported through the node status and Node-RED error handling. Repeated identical errors are logged once, and retries use an exponential delay capped at five minutes.
+    </p>
+
+    <h3>References</h3>
+    <p><a href="https://github.com/blaulichtSMS/docs/blob/master/dashboard_api_v1.md">Official blaulichtSMS Dashboard API documentation</a></p>
+    <p>This is an independent community integration and is not an official blaulichtSMS product.</p>
 </script>
