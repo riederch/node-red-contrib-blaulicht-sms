@@ -1,0 +1,64 @@
+<script type="text/javascript">
+    RED.nodes.registerType('bl-sms-alarm', {
+        category: 'network',
+        color: '#ffffff',
+        defaults: {
+            name: { value: '' },
+            operation: { value: 'trigger', required: true },
+            environment: { value: 'live', required: true },
+            customerId: { value: '', required: false },
+            eventType: { value: 'alarm' },
+            alarmText: { value: '' },
+            needsAcknowledgement: { value: false },
+            duration: { value: 60, validate: RED.validators.number() },
+            groupCodes: { value: '' },
+            template: { value: '' }
+        },
+        credentials: {
+            username: { type: 'text' },
+            password: { type: 'password' }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: 'blsms-logo.png',
+        align: 'right',
+        label: function () {
+            return this.name || `BlaulichtSMS ${this.operation || 'Alarm'}`;
+        },
+        oneditprepare: function () {
+            const update = function () {
+                $('.node-operation-trigger').toggle($('#node-input-operation').val() === 'trigger');
+            };
+            $('#node-input-operation').on('change', update);
+            update();
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="bl-sms-alarm">
+    <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+    <div class="form-row"><label for="node-input-operation"><i class="fa fa-cog"></i> Operation</label><select id="node-input-operation"><option value="trigger">Trigger alarm/info</option><option value="query">Query alarm</option><option value="list">List alarms</option></select></div>
+    <div class="form-row"><label for="node-input-environment"><i class="fa fa-server"></i> Environment</label><select id="node-input-environment"><option value="live">Live</option><option value="staging">Staging</option></select></div>
+    <div class="form-row"><label for="node-input-customerId"><i class="fa fa-building"></i> Customer ID</label><input type="text" id="node-input-customerId"></div>
+    <div class="form-row"><label for="node-input-username"><i class="fa fa-user"></i> Username</label><input type="text" id="node-input-username"></div>
+    <div class="form-row"><label for="node-input-password"><i class="fa fa-lock"></i> Password</label><input type="password" id="node-input-password"></div>
+    <div class="form-row node-operation-trigger"><label for="node-input-eventType"><i class="fa fa-bell"></i> Type</label><select id="node-input-eventType"><option value="alarm">Alarm</option><option value="info">Info</option></select></div>
+    <div class="form-row node-operation-trigger"><label for="node-input-alarmText"><i class="fa fa-comment"></i> Text</label><input type="text" id="node-input-alarmText"></div>
+    <div class="form-row node-operation-trigger"><label for="node-input-needsAcknowledgement"><i class="fa fa-reply"></i> Acknowledgement</label><input type="checkbox" id="node-input-needsAcknowledgement" style="width:auto"></div>
+    <div class="form-row node-operation-trigger"><label for="node-input-duration"><i class="fa fa-clock-o"></i> Duration</label><input type="number" id="node-input-duration" min="1"></div>
+    <div class="form-row node-operation-trigger"><label for="node-input-groupCodes"><i class="fa fa-users"></i> Group codes</label><input type="text" id="node-input-groupCodes" placeholder="G1,G2"></div>
+    <div class="form-row node-operation-trigger"><label for="node-input-template"><i class="fa fa-file-text-o"></i> Template</label><input type="text" id="node-input-template"></div>
+</script>
+
+<script type="text/html" data-help-name="bl-sms-alarm">
+    <p>Calls the blaulichtSMS Alarm API V1.5.</p>
+    <h3>Input</h3>
+    <p><code>msg.payload</code> contains the operation-specific request object. It overrides trigger defaults configured in the editor.</p>
+    <h4>Trigger</h4>
+    <pre>{ type: "alarm", alarmText: "Test", needsAcknowledgement: false, groupCodes: ["G1"] }</pre>
+    <h4>Query</h4>
+    <pre>{ alarmId: "..." }</pre>
+    <h4>List</h4>
+    <pre>{ customerIds: ["100027"], startDate: "2026-01-01T00:00:00.000Z" }</pre>
+    <p>The node never retries trigger requests automatically because a network timeout may occur after the alarm was accepted.</p>
+</script>
