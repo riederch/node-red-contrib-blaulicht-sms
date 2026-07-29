@@ -1,162 +1,228 @@
-/*
- * src:
- * https://github.com/blaulichtSMS/docs/blob/master/dashboard_api_v1.md
- * https://github.com/node-red/node-red-nodes/blob/master/io/snmp/snmp.html
- * https://nodered.org/docs/creating-nodes/status
- */
-module.exports = function (RED) {
+'use strict';
 
-    /**
-     * @param config
-     */
-    function BlSmsNodeDash(config) {
-        RED.nodes.createNode(this, config);
+const https = require('node:https');
 
-        this.host = "https://api.blaulichtsms.net/blaulicht/";
-        this.api = "api/alarm/v1/dashboard/";
-        this.login = "api/alarm/v1/dashboard/login";
-        this.token = config.token;
-        this.kid = config.kid;
-        this.user = config.user;
-        this.pass = config.password;
-        this.updateOnly = config.updateOnly;
-        this.timer = config.timer * 1000;
-        this.sessionKey = null;
-        this.prevData = {};
+const API_HOST = 'api.blaulichtsms.net';
+const API_BASE_PATH = '/blaulicht/api/alarm/v1/dashboard';
+const MIN_INTERVAL_SECONDS = 5;
+const DEFAULT_INTERVAL_SECONDS = 10;
+const REQUEST_TIMEOUT_MS = 15000;
 
-        let Client = require('node-rest-client').Client;
-        this.client = new Client();
+function requestJson({ method, path, body, timeout = REQUEST_TIMEOUT_MS }) {
+    return new Promise((resolve, reject) => {
+        const payload = body === undefined ? null : JSON.stringify(body);
+        const options = {
+            hostname: API_HOST,
+            port: 443,
+            method,
+            path,
+            headers: { Accept: 'application/json' }
+        };
 
-        let node = this;
-        this.status({fill: "grey", shape: "ring", text: "disconnected"});
+        if (payload !== null) {
+            options.headers['Content-Type'] = 'application/json; charset=utf-8';
+            options.headers['Content-Length'] = Buffer.byteLength(payload);
+        }
 
-        let apiEndpoint;
-        node.tout = setInterval(function () {
-            //if( i++ == 10) node.sessionKey += 'a'; //  simulate expired key
-            if (!node.token) {
-                // request Api Key if not set
-                if (!node.sessionKey) {
-                    apiEndpoint = node.host + node.login;
-                    let args = {
-                        data: {
-                            username: node.user,
-                            password: node.pass,
-                            customerId: node.kid
-                        },
-                        headers: {"Content-Type": "application/json"}
-                    };
+        const request = https.request(options, (response) => {
+            const chunks = [];
+            response.setEncoding('utf8');
+            response.on('data', (chunk) => chunks.push(chunk));
+            response.on('end', () => {
+                const rawBody = chunks.join('');
+                let data = null;
 
-                    node.client.post(apiEndpoint, args, function (data, response) {
-                        //console.log("BlSms login:"+response.statusCode);
-                        if (data.error === null) {
-                            node.sessionKey = data.sessionId;
-                            //console.log("BlSms login: got session ID");
-                            node.status({fill: "green", shape: "dot", text: "session OK"});
-                        } else {
-                            if (data.error) {
-                                //console.log("BlSms login: got error message "+data.error);
-                                node.status({fill: "red", shape: "dot", text: "session Err: " + data.error});
-                            } else {
-                                //console.log("BlSms login: http code "+response.statusCode);
-                                node.status({
-                                    fill: "red",
-                                    shape: "dot",
-                                    text: "connection Err: " + response.statusCode
-                                });
-                            }
-                        }
-                    }).on('error', function (err) {
-                        console.log("Exception on requesting data from BlaulichtSMS :" + err);
-                        node.status({fill: "red", shape: "ring", text: "connection Err: " + err});
-                    });
-                }
-            } else {
-                node.sessionKey = node.token;
-            }
-            // request data
-            if (node.sessionKey) {
-                node.status({fill: "green", shape: "ring", text: "requesting"});
-                apiEndpoint = node.host + node.api + node.sessionKey;
-                node.client.get(apiEndpoint, function (data, response) {
-                    if (response.statusCode === 200) {
-                        node.status({fill: "green", shape: "dot", text: "received data"});
-                        //console.log("BlSms data: got data");
-                        if (node.updateOnly) {
-                            //console.log("updating only");
-                            if (!equalObject(data, node.prevData)) {
-                                node.send({payload: data});
-                            }
-                        } else {
-                            //console.log("send every");
-                            node.send({payload: data});
-                        }
-                        node.prevData = data;
-                    } else {
-                        if (node.token) {
-                            node.status({
-                                fill: "red",
-                                shape: "ring",
-                                text: "connection Err: given login token is not valid"
-                            });
-                        } else {
-                            node.sessionKey = null;
-                            //console.log("BlSms data: http code "+response.statusCode);
-                            node.status({fill: "red", shape: "ring", text: "connection Err: " + response.statusCode});
-                        }
+                if (rawBody.length > 0) {
+                    try {
+                        data = JSON.parse(rawBody);
+                    } catch (error) {
+                        const parseError = new Error(`BlaulichtSMS returned invalid JSON (HTTP ${response.statusCode})`);
+                        parseError.code = 'INVALID_JSON';
+                        parseError.statusCode = response.statusCode;
+                        parseError.cause = error;
+                        reject(parseError);
+                        return;
                     }
-                }).on('error', function (err) {
-                    // console.log("Exception on requesting data from BlaulichtSMS :" + err);
-                    node.status({fill: "red", shape: "ring", text: "connection Err: " + err});
-                });
-            }
-        }, node.timer);
+                }
 
-        this.on("close", function () {
-            if (this.tout) {
-                clearInterval(this.tout);
-            }
+                resolve({ statusCode: response.statusCode, data });
+            });
         });
 
-        /**
-         * Compares two objects for equality
-         *
-         * @param a object1
-         * @param b object2
-         * @return bool
-         */
-        function equalObject(a, b) {
-            for (let key in a) {
-                if (a.hasOwnProperty(key) !== b.hasOwnProperty(key)) {
-                    return false;
-                }
-                let value = a[key];
-                let value2 = b[key];
+        request.setTimeout(timeout, () => {
+            const timeoutError = new Error(`BlaulichtSMS request timed out after ${timeout} ms`);
+            timeoutError.code = 'ETIMEDOUT';
+            request.destroy(timeoutError);
+        });
+        request.on('error', reject);
 
-                switch (typeof (value)) {
-                    case 'object':
-                        if (!equalObject(value, value2)) {
-                            return false;
-                        }
-                        break;
-                    case 'function':
-                        if (typeof (value2) == 'undefined' || value.toString() != value2.toString()) {
-                            return false;
-                        }
-                        break;
-                    default:
-                        if (value != value2) {
-                            return false;
-                        }
-                }
+        if (payload !== null) {
+            request.write(payload);
+        }
+        request.end();
+    });
+}
+
+function parseInterval(value) {
+    const interval = Number(value);
+    if (!Number.isFinite(interval) || interval < MIN_INTERVAL_SECONDS) {
+        return DEFAULT_INTERVAL_SECONDS * 1000;
+    }
+    return interval * 1000;
+}
+
+function isEqual(a, b) {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
+module.exports = function registerNode(RED) {
+    function BlaulichtSmsDashboardNode(config) {
+        RED.nodes.createNode(this, config);
+        const node = this;
+
+        const credentials = node.credentials || {};
+        // Keep flows created with versions <= 0.2.0 working after upgrade.
+        const token = credentials.token || config.token || '';
+        const username = credentials.username || config.user || '';
+        const password = credentials.password || config.password || '';
+        const customerId = String(config.customerId || config.kid || '').trim();
+        const updateOnly = Boolean(config.updateOnly);
+        const intervalMs = parseInterval(config.interval || config.timer);
+
+        let sessionId = token || null;
+        let previousData;
+        let timer = null;
+        let closed = false;
+        let requestInProgress = false;
+
+        function setStatus(fill, shape, text) {
+            node.status({ fill, shape, text });
+        }
+
+        function reportError(error, message) {
+            const details = error && error.message ? error.message : String(error);
+            setStatus('red', 'ring', message);
+            node.error(`${message}: ${details}`);
+        }
+
+        async function login() {
+            if (token) {
+                sessionId = token;
+                return true;
             }
-            for (key in b) {
-                if (typeof (a[key]) == 'undefined') {
-                    return false;
-                }
+
+            if (!username || !password || !customerId) {
+                setStatus('red', 'ring', 'credentials missing');
+                return false;
             }
+
+            setStatus('yellow', 'ring', 'signing in');
+            const response = await requestJson({
+                method: 'POST',
+                path: `${API_BASE_PATH}/login`,
+                body: { username, password, customerId }
+            });
+
+            if (response.statusCode !== 200 || !response.data || response.data.success !== true || !response.data.sessionId) {
+                const apiError = response.data && response.data.error ? response.data.error : `HTTP ${response.statusCode}`;
+                const error = new Error(apiError);
+                error.code = 'LOGIN_FAILED';
+                throw error;
+            }
+
+            sessionId = response.data.sessionId;
+            setStatus('green', 'dot', 'session active');
             return true;
         }
+
+        async function fetchDashboard(retryAfterUnauthorized = true) {
+            if (!sessionId && !(await login())) {
+                return;
+            }
+
+            setStatus('green', 'ring', 'requesting');
+            const response = await requestJson({
+                method: 'GET',
+                path: `${API_BASE_PATH}/${encodeURIComponent(sessionId)}`
+            });
+
+            if (response.statusCode === 401 && !token && retryAfterUnauthorized) {
+                sessionId = null;
+                if (await login()) {
+                    await fetchDashboard(false);
+                }
+                return;
+            }
+
+            if (response.statusCode !== 200) {
+                const error = new Error(`HTTP ${response.statusCode}`);
+                error.code = 'DASHBOARD_REQUEST_FAILED';
+                throw error;
+            }
+
+            const data = response.data;
+            setStatus('green', 'dot', 'data received');
+
+            if (!updateOnly || previousData === undefined || !isEqual(data, previousData)) {
+                node.send({ payload: data });
+            }
+            previousData = data;
+        }
+
+        async function poll() {
+            if (closed || requestInProgress) {
+                return;
+            }
+
+            requestInProgress = true;
+            try {
+                await fetchDashboard();
+            } catch (error) {
+                if (!token && error && error.code === 'LOGIN_FAILED') {
+                    sessionId = null;
+                    reportError(error, 'login failed');
+                } else if (token && error && error.code === 'DASHBOARD_REQUEST_FAILED') {
+                    reportError(error, 'token rejected');
+                } else {
+                    reportError(error, 'connection error');
+                }
+            } finally {
+                requestInProgress = false;
+            }
+        }
+
+        setStatus('grey', 'ring', 'disconnected');
+        void poll();
+        timer = setInterval(() => void poll(), intervalMs);
+
+        node.on('close', (done) => {
+            closed = true;
+            if (timer) {
+                clearInterval(timer);
+                timer = null;
+            }
+            if (typeof done === 'function') {
+                done();
+            }
+        });
     }
 
-    RED.nodes.registerType("bl-sms-dash", BlSmsNodeDash);
+    RED.nodes.registerType('bl-sms-dash', BlaulichtSmsDashboardNode, {
+        credentials: {
+            token: { type: 'password' },
+            username: { type: 'text' },
+            password: { type: 'password' }
+        }
+    });
+};
+
+module.exports._internals = {
+    API_BASE_PATH,
+    API_HOST,
+    DEFAULT_INTERVAL_SECONDS,
+    MIN_INTERVAL_SECONDS,
+    REQUEST_TIMEOUT_MS,
+    isEqual,
+    parseInterval,
+    requestJson
 };
