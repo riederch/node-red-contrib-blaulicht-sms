@@ -6,23 +6,31 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
-### Planned
+### Release validation still required
 
-- Real-world validation against a dedicated blaulichtSMS test dashboard
+- Real Dashboard API test with a dedicated test dashboard
+- Alarm API `trigger`, `query` and `list` test against the official staging environment
+- Controlled live trigger test with an authorized test group
+- Installation smoke test in clean Node-RED 4 and Node-RED 5 environments
 - npm publication and Node-RED Flow Library submission
-- Optional separate Alarm API output node after a dedicated security and UX design
 
 ## [1.0.0] - 2026-07-29
 
 ### Added
 
 - Dedicated, dependency-free Dashboard API client
-- Credential-store support for tokens, usernames and passwords
-- Automatic session renewal after HTTP 401 for credential login
+- Separate Alarm API V1.5 client and `bl-sms-alarm` output node
+- Alarm API operations `trigger`, `query` and `list`
+- Official live and staging API environments
+- Explicit live-trigger confirmation with staging as the default
+- Dedicated `TRIGGER_OUTCOME_UNKNOWN` error for ambiguous trigger failures
+- Validation for acknowledgement duration, ISO dates, group codes, telephone numbers, coordinates and geolocation
+- Credential-store support for Dashboard and automatic-alarm-trigger secrets
+- Automatic Dashboard session renewal after HTTP 401
 - Request timeout, response size limit and request cancellation
-- Exponential retry backoff and duplicate error suppression
+- Exponential Dashboard retry backoff and duplicate error suppression
 - Stable output metadata in `msg.topic` and `msg.blaulichtSms`
-- Unit and integration-style tests using the Node.js test runner
+- API-client and Node-RED runtime tests using the Node.js test runner
 - GitHub Actions CI and CodeQL workflows
 - Example flow, architecture documentation, contribution guide and security policy
 - English and German documentation
@@ -31,21 +39,25 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 - Minimum supported Node-RED version is 4.0
 - Package metadata and repository links were corrected
-- The node uses a stock Font Awesome icon instead of a missing custom image
-- Polling uses completion-based scheduling to prevent overlapping requests
-- Dashboard response comparison now uses deep structural equality
+- Both nodes use bundled Node-RED Font Awesome icons
+- Dashboard polling uses completion-based scheduling to prevent overlapping requests
+- Dashboard response comparison uses deep structural equality
+- Alarm trigger requests are sent exactly once and are never retried automatically
+- Alarm-node errors are reported once through the Node-RED `done(error)` contract
 
 ### Security
 
 - Secrets are no longer stored in exported flow JSON for newly saved nodes
+- Live triggering is disabled until explicitly confirmed in the node configuration
 - Network and parse errors no longer escape as uncaught exceptions
 - Large API responses are rejected before unbounded buffering
+- Running requests are aborted when nodes are stopped or redeployed
 
 ### Compatibility
 
-- Node type remains `bl-sms-dash`
-- `msg.payload` remains the unmodified Dashboard API response
-- Legacy 0.2.0 configuration fields remain supported during migration
+- Dashboard node type remains `bl-sms-dash`
+- Dashboard `msg.payload` remains the unmodified API response
+- Legacy 0.2.0 Dashboard configuration fields remain supported during migration
 
 ## [0.2.0] - 2021-12-02
 
